@@ -1,0 +1,7 @@
+python-dotenv
+fastapi
+uvicorn
+streamlit
+requests
+pydantic
+ollama
