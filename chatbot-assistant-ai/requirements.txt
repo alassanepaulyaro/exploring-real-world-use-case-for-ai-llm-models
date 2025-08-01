@@ -7,3 +7,9 @@ ollama
 python-docx 
 fpdf
 langdetect
+SpeechRecognition
+pyaudio
+pydub
+regex
+langdetect>=1.0.9
+ffmpeg-python
