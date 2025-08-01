@@ -4,3 +4,5 @@ uvicorn
 streamlit
 requests
 ollama
+python-docx 
+fpdf
