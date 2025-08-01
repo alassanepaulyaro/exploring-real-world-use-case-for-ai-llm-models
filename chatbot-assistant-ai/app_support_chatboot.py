@@ -1,7 +1,4 @@
 # Customer Support Chatbot with Multilanguage Support
-
-# Customer Support Chatbot with Multilanguage Support
-
 import streamlit as st
 import requests
 import json
