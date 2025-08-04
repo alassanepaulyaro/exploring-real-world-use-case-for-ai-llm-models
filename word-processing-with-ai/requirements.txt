@@ -9,3 +9,4 @@ streamlit-monaco
 streamlit-monaco-code-editor
 python-docx 
 PyPDF2
+streamlit-copy-to-clipboard
