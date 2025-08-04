@@ -19,3 +19,7 @@ TTS
 scipy
 ffmpeg 
 numpy
+pymupdf 
+pdf2image 
+pytesseract 
+pillow 
