@@ -13,3 +13,9 @@ pydub
 regex
 langdetect>=1.0.9
 ffmpeg-python
+torch 
+openai-whisper
+TTS
+scipy
+ffmpeg 
+numpy
