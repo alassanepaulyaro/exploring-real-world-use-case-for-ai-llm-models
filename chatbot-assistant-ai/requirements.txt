@@ -23,3 +23,5 @@ pymupdf
 pdf2image 
 pytesseract 
 pillow 
+psutil
+plotly 
