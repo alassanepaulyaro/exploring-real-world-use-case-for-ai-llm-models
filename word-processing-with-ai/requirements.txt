@@ -11,4 +11,5 @@ python-docx
 PyPDF2
 streamlit-copy-to-clipboard
 pandas 
-openpyxl
+pymupdf
+plotly
