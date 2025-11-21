@@ -1,6 +1,7 @@
 """
-EmpathyBot - Virtual Therapy Chat
-A modern AI-powered therapeutic chatbot with multiple model support
+Interview Coach Bot - Streamlit Implementation
+A chatbot that simulates an interview coach helping users practice answering
+behavioral and technical questions with feedback and improvement suggestions.
 """
 
 import os
@@ -25,8 +26,8 @@ load_dotenv()
 # ============================
 
 st.set_page_config(
-    page_title="EmpathyBot – Virtual Therapy Chat",
-    page_icon="🧠",
+    page_title="Interview Coach Bot",
+    page_icon="🎤",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -77,24 +78,15 @@ def initialize_session_state():
     if "show_timestamps" not in st.session_state:
         st.session_state.show_timestamps = False
 
+    if "interview_mode" not in st.session_state:
+        st.session_state.interview_mode = "General"
+
 initialize_session_state()
 
 
 # ============================
 # Model Provider Functions
 # ============================
-
-def get_available_ollama_models() -> List[str]:
-    """Fetch available Ollama models from the system"""
-    if not OLLAMA_AVAILABLE:
-        return []
-
-    try:
-        models = ollama.list()
-        return [model['name'] for model in models.get('models', [])]
-    except Exception:
-        return list(OLLAMA_MODELS.keys())
-
 
 def call_ollama(messages: List[Dict], model: str) -> str:
     """Call Ollama API"""
@@ -125,7 +117,7 @@ def call_openai(messages: List[Dict], model: str) -> str:
         content = response.choices[0].message.content.strip() if response.choices else ""
 
         if not content:
-            return "I'm sorry, I couldn't find the right words just now. Could you try expressing what you're feeling differently?"
+            return "I apologize, I couldn't generate a proper response. Could you rephrase your question?"
 
         return content
 
@@ -137,21 +129,41 @@ def call_openai(messages: List[Dict], model: str) -> str:
 # Main Chat Function
 # ============================
 
-def get_therapy_response(user_input: str) -> str:
+def get_coach_response(user_input: str) -> str:
     """
-    Get therapy response from selected AI model
+    Get interview coach response from selected AI model
     """
+    # Define system message based on interview mode
+    interview_modes = {
+        "General": (
+            "You are an experienced interview coach helping candidates prepare for job interviews. "
+            "Ask common interview questions (behavioral or technical), provide constructive feedback, "
+            "suggest improvements, and encourage the user. Be supportive but honest in your assessment. "
+            "Help them refine their answers to be more concise, impactful, and relevant."
+        ),
+        "Behavioral": (
+            "You are an experienced interview coach specializing in behavioral interviews. "
+            "Ask behavioral questions using the STAR method (Situation, Task, Action, Result). "
+            "Evaluate answers for structure, clarity, and impact. Provide specific feedback on how to "
+            "improve storytelling and demonstrate key competencies like leadership, teamwork, and problem-solving."
+        ),
+        "Technical": (
+            "You are an experienced interview coach specializing in technical interviews. "
+            "Ask technical questions appropriate to software engineering, data structures, algorithms, "
+            "system design, or coding problems. Evaluate answers for technical accuracy, clarity of explanation, "
+            "and problem-solving approach. Provide constructive feedback and suggest best practices."
+        ),
+        "Mock Interview": (
+            "You are conducting a professional mock interview. Act as a hiring manager for a tech company. "
+            "Ask a series of relevant interview questions, listen to responses, and provide detailed feedback "
+            "at the end of each answer. Be professional, encouraging, and constructive. After 5-7 questions, "
+            "offer a comprehensive assessment of the candidate's performance."
+        )
+    }
+
     system_message = {
         "role": "system",
-        "content": (
-            "You are a compassionate and empathetic virtual therapist. "
-            "You listen carefully, validate the user's emotions, and offer gentle, "
-            "supportive reflections and coping suggestions. "
-            "Do not diagnose, do not provide medical, legal, or crisis advice. "
-            "If the user seems in danger or mentions self-harm, encourage them to "
-            "seek immediate help from local emergency services or a trusted person. "
-            "Use a calm, warm, non-judgmental tone."
-        ),
+        "content": interview_modes.get(st.session_state.interview_mode, interview_modes["General"])
     }
 
     # Build message history
@@ -186,28 +198,28 @@ def get_theme_colors():
     """Return theme-specific color schemes"""
     themes = {
         "default": {
-            "user_bg": "#dcf8c6",
-            "bot_bg": "#f1f1f1",
-            "gradient_start": "#667eea",
-            "gradient_end": "#764ba2",
+            "user_bg": "#e3f2fd",
+            "bot_bg": "#f5f5f5",
+            "gradient_start": "#1976d2",
+            "gradient_end": "#42a5f5",
         },
         "dark": {
-            "user_bg": "#005c4b",
-            "bot_bg": "#262626",
-            "gradient_start": "#4a00e0",
-            "gradient_end": "#8e2de2",
+            "user_bg": "#1a237e",
+            "bot_bg": "#263238",
+            "gradient_start": "#0d47a1",
+            "gradient_end": "#1976d2",
         },
-        "ocean": {
-            "user_bg": "#b3e5fc",
-            "bot_bg": "#e1f5fe",
-            "gradient_start": "#0097a7",
-            "gradient_end": "#00bcd4",
+        "professional": {
+            "user_bg": "#e8f5e9",
+            "bot_bg": "#fafafa",
+            "gradient_start": "#388e3c",
+            "gradient_end": "#66bb6a",
         },
-        "sunset": {
-            "user_bg": "#ffe0b2",
-            "bot_bg": "#fff3e0",
-            "gradient_start": "#ff6f00",
-            "gradient_end": "#ff9100",
+        "vibrant": {
+            "user_bg": "#fff3e0",
+            "bot_bg": "#fafafa",
+            "gradient_start": "#f57c00",
+            "gradient_end": "#ffb74d",
         },
     }
     return themes.get(st.session_state.theme, themes["default"])
@@ -216,7 +228,7 @@ def get_theme_colors():
 def display_chat_history():
     """Display chat history with modern UI"""
     if not st.session_state.history:
-        st.info("🌟 Start by sharing what's on your mind. You can talk about your day, emotions, or anything that feels heavy.")
+        st.info("🎯 Start your interview practice! You can:\n- Ask for a practice question\n- Answer a question\n- Request feedback on your response\n- Ask for interview tips")
         return
 
     for msg in st.session_state.history:
@@ -233,16 +245,29 @@ def display_chat_history():
                 st.markdown(f"**You{timestamp_display}**")
                 st.write(msg['content'])
         elif msg["role"] == "assistant":
-            with st.chat_message("assistant", avatar="🧠"):
-                st.markdown(f"**EmpathyBot{timestamp_display}**")
+            with st.chat_message("assistant", avatar="🎤"):
+                st.markdown(f"**Interview Coach{timestamp_display}**")
                 st.write(msg['content'])
 
 
 def render_sidebar():
     """Render sidebar with settings"""
     with st.sidebar:
-        st.image("https://img.icons8.com/clouds/100/000000/brain.png", width=80)
+        st.image("https://img.icons8.com/clouds/100/000000/microphone.png", width=80)
         st.title("⚙️ Settings")
+
+        st.divider()
+
+        # Interview Mode Selection
+        st.subheader("🎯 Interview Mode")
+
+        interview_modes = ["General", "Behavioral", "Technical", "Mock Interview"]
+        st.session_state.interview_mode = st.selectbox(
+            "Mode",
+            options=interview_modes,
+            index=interview_modes.index(st.session_state.interview_mode),
+            help="Choose the type of interview practice"
+        )
 
         st.divider()
 
@@ -303,7 +328,7 @@ def render_sidebar():
                 "Model",
                 options=list(cloud_models.keys()),
                 format_func=lambda x: cloud_models[x],
-                index=0,  # Default to gpt-oss:120b-cloud
+                index=0,
                 help="Select Ollama cloud model"
             )
             st.session_state.model_provider = "ollama_cloud"
@@ -317,7 +342,7 @@ def render_sidebar():
         # UI Customization
         st.subheader("🎨 Appearance")
 
-        theme_options = ["default", "dark", "ocean", "sunset"]
+        theme_options = ["default", "dark", "professional", "vibrant"]
         st.session_state.theme = st.selectbox(
             "Theme",
             options=theme_options,
@@ -332,13 +357,32 @@ def render_sidebar():
 
         st.divider()
 
+        # Quick Actions
+        st.subheader("⚡ Quick Actions")
+
+        if st.button("📋 Sample Questions", use_container_width=True):
+            sample_questions = {
+                "Behavioral": "Tell me about a time when you faced a difficult challenge at work.",
+                "Technical": "Explain the difference between a stack and a queue.",
+                "General": "What are your greatest strengths and weaknesses?"
+            }
+            question = sample_questions.get(st.session_state.interview_mode, sample_questions["General"])
+            st.session_state.history.append({
+                "role": "assistant",
+                "content": f"Here's a practice question for you:\n\n{question}\n\nTake your time and answer as you would in a real interview.",
+                "timestamp": datetime.now().isoformat(),
+            })
+            st.rerun()
+
+        st.divider()
+
         # Session Controls
         st.subheader("💬 Session Controls")
 
         col1, col2 = st.columns(2)
 
         with col1:
-            if st.button("🔄 New Chat", use_container_width=True):
+            if st.button("🔄 New Session", use_container_width=True):
                 st.session_state.history = []
                 st.session_state.input_key += 1
                 st.rerun()
@@ -358,17 +402,19 @@ def render_sidebar():
             bot_messages = total_messages - user_messages
 
             col1, col2 = st.columns(2)
-            col1.metric("Your messages", user_messages)
-            col2.metric("Bot messages", bot_messages)
+            col1.metric("Your responses", user_messages)
+            col2.metric("Coach feedback", bot_messages)
 
         st.divider()
 
-        # Important Notice
-        st.subheader("⚠️ Important Notice")
-        st.warning(
-            "This chatbot provides emotional support only. "
-            "It does not give medical advice. "
-            "In case of emergency, contact local services immediately."
+        # Tips
+        st.subheader("💡 Interview Tips")
+        st.info(
+            "**STAR Method:**\n"
+            "- **S**ituation: Set the context\n"
+            "- **T**ask: Describe the challenge\n"
+            "- **A**ction: Explain what you did\n"
+            "- **R**esult: Share the outcome"
         )
 
 
@@ -378,20 +424,21 @@ def export_chat():
         st.error("No conversation to export")
         return
 
-    export_text = f"EmpathyBot Conversation Export\n"
+    export_text = f"Interview Coach Session Export\n"
     export_text += f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+    export_text += f"Mode: {st.session_state.interview_mode}\n"
     export_text += f"Model: {st.session_state.selected_model}\n"
     export_text += "=" * 50 + "\n\n"
 
     for msg in st.session_state.history:
-        role = "You" if msg["role"] == "user" else "EmpathyBot"
+        role = "You" if msg["role"] == "user" else "Interview Coach"
         timestamp = msg.get("timestamp", "")
         export_text += f"[{timestamp}] {role}:\n{msg['content']}\n\n"
 
     st.sidebar.download_button(
-        label="💾 Download Chat",
+        label="💾 Download Session",
         data=export_text,
-        file_name=f"empathybot_chat_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+        file_name=f"interview_practice_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
         mime="text/plain",
         use_container_width=True
     )
@@ -414,8 +461,8 @@ def main():
         st.markdown(
             """
             <div style='text-align: center; padding: 20px;'>
-                <h1 style='color: #667eea; font-size: 3em; margin-bottom: 0;'>🧠 EmpathyBot</h1>
-                <p style='color: #888; font-size: 1.2em;'>Your Virtual Therapy Companion</p>
+                <h1 style='color: #1976d2; font-size: 3em; margin-bottom: 0;'>🎤 Interview Coach Bot</h1>
+                <p style='color: #666; font-size: 1.2em;'>Your Personal Interview Practice Partner</p>
             </div>
             """,
             unsafe_allow_html=True
@@ -423,11 +470,11 @@ def main():
 
         st.markdown(
             """
-            <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            <div style='background: linear-gradient(135deg, #1976d2 0%, #42a5f5 100%);
             padding: 20px; border-radius: 15px; color: white; text-align: center; margin-bottom: 30px;'>
                 <p style='margin: 0; font-size: 1.1em;'>
-                    This space is designed for <strong>emotional support and gentle reflection</strong>.<br/>
-                    It is <strong>not a substitute for professional mental health care</strong>.
+                    <strong>Practice makes perfect!</strong><br/>
+                    Improve your interview skills with personalized coaching and feedback.
                 </p>
             </div>
             """,
@@ -441,7 +488,7 @@ def main():
         with st.form("chat_form", clear_on_submit=True):
             user_input = st.text_area(
                 "Message",
-                placeholder="What would you like to share today?",
+                placeholder="Type your answer or ask for a practice question...",
                 key=f"user_input_{st.session_state.input_key}",
                 label_visibility="collapsed",
                 height=100,
@@ -460,8 +507,8 @@ def main():
             })
 
             # Get bot response
-            with st.spinner("🧠 EmpathyBot is reflecting on your words..."):
-                reply = get_therapy_response(user_input.strip())
+            with st.spinner("🎤 Coach is reviewing your response..."):
+                reply = get_coach_response(user_input.strip())
 
             # Add bot response to history
             st.session_state.history.append({
@@ -503,7 +550,7 @@ def apply_custom_css():
 
         .stTextInput > div > div > input:focus {{
             border-color: {colors["gradient_start"]};
-            box-shadow: 0 0 15px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 0 15px rgba(25, 118, 210, 0.3);
         }}
 
         /* Text area styling */
@@ -518,7 +565,7 @@ def apply_custom_css():
 
         .stTextArea > div > div > textarea:focus {{
             border-color: {colors["gradient_start"]};
-            box-shadow: 0 0 15px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 0 15px rgba(25, 118, 210, 0.3);
         }}
 
         /* Button styling */
@@ -536,7 +583,7 @@ def apply_custom_css():
         .stButton > button:hover, .stFormSubmitButton > button:hover {{
             background: linear-gradient(90deg, {colors["gradient_end"]} 0%, {colors["gradient_start"]} 100%);
             transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 5px 20px rgba(25, 118, 210, 0.4);
         }}
 
         /* Selectbox styling */
