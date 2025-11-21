@@ -1,6 +1,7 @@
-# Twitter  Summarizer 
+# Twitter Assistant
 """
 Condenses multi-tweet threads into concise TLDRs, bullet lists, action items, or narratives.
+Also generates catchy, engaging tweets based on your topic, audience, and style.
 """
 
 import os
@@ -26,7 +27,8 @@ load_dotenv()
 # ============================
 
 st.set_page_config(
-    page_title="Twitter  Summarizer",
+    page_title="Twitter Assistant",
+    page_icon="🐦",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -79,6 +81,12 @@ def initialize_session_state():
 
     if "summary_mode" not in st.session_state:
         st.session_state.summary_mode = "TLDR"
+
+    if "twitter_tool" not in st.session_state:
+        st.session_state.twitter_tool = "Twitter Summarizer"
+
+    if "tweet_tone" not in st.session_state:
+        st.session_state.tweet_tone = "Professional"
 
 
 initialize_session_state()
@@ -139,28 +147,75 @@ def call_openai(messages: List[Dict], model: str) -> str:
 
 def get_summary_response(user_input: str) -> str:
     """Route conversation through the selected AI model"""
-    summary_modes = {
-        "TLDR": (
-            "You are a social media analyst who produces concise TLDR summaries of long Twitter threads. "
-            "Capture the core argument, supporting evidence, and conclusion in 3 to 4 sentences. Use markdown."
-        ),
-        "Key Points": (
-            "You summarize threads into bullet lists with clear headings. "
-            "Highlight main claims, data points, and quotes. Keep bullets punchy. Use markdown."
-        ),
-        "Storyline": (
-            "You retell the thread as a narrative with beginning, conflict, and resolution. "
-            "Reference the author's tone and include context readers need. Use markdown."
-        ),
-        "Action Items": (
-            "You extract practical steps or lessons from the thread. "
-            "List prioritized actions, resources, or metrics people should watch. Use markdown."
-        ),
-    }
+
+    # Determine the system prompt based on selected Twitter tool
+    if st.session_state.twitter_tool == "Tweet Generator":
+        tweet_tones = {
+            "Professional": (
+                "You are a professional Twitter copywriter who generates polished, business-appropriate tweets. "
+                "Your specialty is crafting content that fits the 280-character Twitter limit while maintaining "
+                "a professional tone suitable for corporate, B2B, or thought leadership contexts. Focus on clear "
+                "value propositions, industry insights, and credible messaging. Generate 2-4 tweet options with "
+                "different angles while keeping the professional tone consistent. Use relevant hashtags strategically "
+                "and avoid casual slang or excessive emojis. Prioritize clarity, authority, and professionalism. "
+                "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
+                "Use markdown syntax instead (line breaks, **bold**, *italic*)."
+            ),
+            "Friendly": (
+                "You are a warm and approachable Twitter copywriter who generates friendly, conversational tweets. "
+                "Your specialty is crafting content that fits the 280-character Twitter limit while being welcoming, "
+                "relatable, and personable. Create tweets that feel like they're coming from a friend—use casual "
+                "language, light humor, and emojis when appropriate. Generate 2-4 tweet options with different angles "
+                "that encourage friendly engagement and community building. Focus on authenticity, positivity, and "
+                "making connections with the audience. "
+                "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
+                "Use markdown syntax instead (line breaks, **bold**, *italic*)."
+            ),
+            "Concise": (
+                "You are a master of brevity—a Twitter copywriter who generates ultra-concise, impactful tweets. "
+                "Your specialty is crafting sharp, direct content that fits well within the 280-character limit, "
+                "often much shorter. Every word counts. Cut the fluff, get straight to the point, and deliver "
+                "maximum impact with minimum words. Generate 2-4 tweet options that are punchy, clear, and memorable. "
+                "Use short sentences, active voice, and powerful verbs. No unnecessary words or elaboration. "
+                "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
+                "Use markdown syntax instead (line breaks, **bold**, *italic*)."
+            ),
+            "Polite": (
+                "You are a courteous and respectful Twitter copywriter who generates polite, considerate tweets. "
+                "Your specialty is crafting content that fits the 280-character Twitter limit while maintaining "
+                "respectful, tactful, and gracious communication. Use courteous language, acknowledge different "
+                "perspectives, and express ideas with kindness and diplomacy. Generate 2-4 tweet options that "
+                "balance assertiveness with politeness. Perfect for sensitive topics, customer service, or "
+                "maintaining positive brand reputation. Prioritize respect, empathy, and constructive communication. "
+                "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
+                "Use markdown syntax instead (line breaks, **bold**, *italic*)."
+            ),
+        }
+        system_prompt = tweet_tones.get(st.session_state.tweet_tone, tweet_tones["Professional"])
+    else:  # Twitter Summarizer
+        summary_modes = {
+            "TLDR": (
+                "You are a social media analyst who produces concise TLDR summaries of long Twitter threads. "
+                "Capture the core argument, supporting evidence, and conclusion in 3 to 4 sentences. Use markdown."
+            ),
+            "Key Points": (
+                "You summarize threads into bullet lists with clear headings. "
+                "Highlight main claims, data points, and quotes. Keep bullets punchy. Use markdown."
+            ),
+            "Storyline": (
+                "You retell the thread as a narrative with beginning, conflict, and resolution. "
+                "Reference the author's tone and include context readers need. Use markdown."
+            ),
+            "Action Items": (
+                "You extract practical steps or lessons from the thread. "
+                "List prioritized actions, resources, or metrics people should watch. Use markdown."
+            ),
+        }
+        system_prompt = summary_modes.get(st.session_state.summary_mode, summary_modes["TLDR"])
 
     system_message = {
         "role": "system",
-        "content": summary_modes.get(st.session_state.summary_mode, summary_modes["TLDR"]),
+        "content": system_prompt,
     }
 
     messages = [system_message]
@@ -213,6 +268,12 @@ def get_theme_colors():
             "gradient_start": "#f9a825",
             "gradient_end": "#ffca28",
         },
+        "generator": {
+            "user_bg": "#e3f2fd",
+            "bot_bg": "#fafafa",
+            "gradient_start": "#1da1f2",
+            "gradient_end": "#42a5f5",
+        },
     }
     return themes.get(st.session_state.theme, themes["default"])
 
@@ -220,7 +281,7 @@ def get_theme_colors():
 def display_chat_history():
     """Display chat history with modern UI"""
     if not st.session_state.history:
-        st.info("Paste the full thread text to get instant summaries tailored to your needs.")
+        st.info("Summarize Twitter threads or generate engaging tweets! Choose your tool from the sidebar.")
         return
 
     for msg in st.session_state.history:
@@ -238,27 +299,53 @@ def display_chat_history():
                 st.write(msg["content"])
         elif msg["role"] == "assistant":
             with st.chat_message("assistant"):
-                st.markdown(f"**Summarizer{timestamp_display}**")
+                st.markdown(f"**Twitter Assistant{timestamp_display}**")
                 st.write(msg["content"])
 
 
 def render_sidebar():
     """Render sidebar with settings"""
     with st.sidebar:
-        st.title("Summarizer Settings")
+        st.title("Twitter Tools")
 
         st.divider()
 
-        st.subheader("Summary Mode")
-        summary_modes = ["TLDR", "Key Points", "Storyline", "Action Items"]
-        st.session_state.summary_mode = st.selectbox(
-            "Mode",
-            options=summary_modes,
-            index=summary_modes.index(st.session_state.summary_mode),
-            help="Choose how the thread should be condensed.",
+        # Twitter Tool Selection
+        st.subheader("Twitter Tool")
+        twitter_tools = ["Twitter Summarizer", "Tweet Generator"]
+        st.session_state.twitter_tool = st.selectbox(
+            "Tool",
+            options=twitter_tools,
+            index=twitter_tools.index(st.session_state.twitter_tool),
+            help="Choose between summarizing threads or generating new tweets.",
         )
 
         st.divider()
+
+        # Show appropriate mode selection based on Twitter Tool
+        if st.session_state.twitter_tool == "Twitter Summarizer":
+            st.subheader("Summary Mode")
+            summary_modes = ["TLDR", "Key Points", "Storyline", "Action Items"]
+            st.session_state.summary_mode = st.selectbox(
+                "Mode",
+                options=summary_modes,
+                index=summary_modes.index(st.session_state.summary_mode) if st.session_state.summary_mode in summary_modes else 0,
+                help="Choose the type of summary you want.",
+            )
+
+            st.divider()
+
+        elif st.session_state.twitter_tool == "Tweet Generator":
+            st.subheader("Tweet Tone")
+            tweet_tones = ["Professional", "Friendly", "Concise", "Polite"]
+            st.session_state.tweet_tone = st.selectbox(
+                "Tone",
+                options=tweet_tones,
+                index=tweet_tones.index(st.session_state.tweet_tone) if st.session_state.tweet_tone in tweet_tones else 0,
+                help="Choose the tone style for generated tweets.",
+            )
+
+            st.divider()
 
         st.subheader("Model Selection")
         provider_options = {
@@ -323,42 +410,6 @@ def render_sidebar():
 
         st.divider()
 
-        st.subheader("Appearance")
-        theme_options = ["default", "slate", "night", "citrus"]
-        st.session_state.theme = st.selectbox(
-            "Theme",
-            options=theme_options,
-            index=theme_options.index(st.session_state.theme),
-            format_func=lambda x: x.title(),
-        )
-
-        st.session_state.show_timestamps = st.checkbox(
-            "Show timestamps",
-            value=st.session_state.show_timestamps,
-        )
-
-        st.divider()
-
-        st.subheader("Quick Actions")
-        if st.button("Sample Prompt", use_container_width=True):
-            sample_prompts = {
-                "TLDR": "Summarize this thread explaining why housing prices stay high:",
-                "Key Points": "Break down this AI policy thread into key bullets:",
-                "Storyline": "Tell the story of this entrepreneurship thread in a narrative format:",
-                "Action Items": "Pull actionable lessons from this productivity thread:",
-            }
-            prompt = sample_prompts.get(st.session_state.summary_mode, sample_prompts["TLDR"])
-            st.session_state.history.append(
-                {
-                    "role": "assistant",
-                    "content": f"Paste a thread after something like:\n\n{prompt}",
-                    "timestamp": datetime.now().isoformat(),
-                }
-            )
-            st.rerun()
-
-        st.divider()
-
         st.subheader("Session Controls")
         col1, col2 = st.columns(2)
 
@@ -375,23 +426,15 @@ def render_sidebar():
 
         if st.session_state.history:
             st.divider()
-            st.subheader("Summary Stats")
+            st.subheader("Session Stats")
 
             total_messages = len(st.session_state.history)
             user_messages = len([m for m in st.session_state.history if m["role"] == "user"])
             bot_messages = total_messages - user_messages
 
             col1, col2 = st.columns(2)
-            col1.metric("Thread inputs", user_messages)
-            col2.metric("Summaries generated", bot_messages)
-
-        st.divider()
-
-        st.subheader("Thread Tips")
-        st.info(
-            "Copy the entire thread text, including author handles if relevant, for best context. "
-            "Mention any tone preferences (neutral, analytical, casual)."
-        )
+            col1.metric("Your requests", user_messages)
+            col2.metric("AI responses", bot_messages)
 
 
 def export_chat():
@@ -400,21 +443,25 @@ def export_chat():
         st.error("No conversation to export")
         return
 
-    export_text = "Twitter Thread Summarizer Export\n"
+    export_text = "Twitter Assistant Export\n"
     export_text += f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-    export_text += f"Mode: {st.session_state.summary_mode}\n"
+    export_text += f"Tool: {st.session_state.twitter_tool}\n"
+    if st.session_state.twitter_tool == "Twitter Summarizer":
+        export_text += f"Summary Mode: {st.session_state.summary_mode}\n"
+    elif st.session_state.twitter_tool == "Tweet Generator":
+        export_text += f"Tweet Tone: {st.session_state.tweet_tone}\n"
     export_text += f"Model: {st.session_state.selected_model}\n"
     export_text += "=" * 50 + "\n\n"
 
     for msg in st.session_state.history:
-        role = "You" if msg["role"] == "user" else "Summarizer"
+        role = "You" if msg["role"] == "user" else "Twitter Assistant"
         timestamp = msg.get("timestamp", "")
         export_text += f"[{timestamp}] {role}:\n{msg['content']}\n\n"
 
     st.sidebar.download_button(
         label="Download Session",
         data=export_text,
-        file_name=f"twitter_summarizer_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+        file_name=f"twitter_assistant_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
         mime="text/plain",
         use_container_width=True,
     )
@@ -435,8 +482,8 @@ def main():
         st.markdown(
             """
             <div style='text-align: center; padding: 20px;'>
-                <h1 style='color: #00897b; font-size: 3em; margin-bottom: 0;'>Twitter Thread Summarizer</h1>
-                <p style='color: #666; font-size: 1.2em;'>Turn sprawling tweet storms into useful insights.</p>
+                <h1 style='color: #00897b; font-size: 3em; margin-bottom: 0;'>🐦 Twitter Assistant</h1>
+                <p style='color: #666; font-size: 1.2em;'>Summarize threads and generate engaging tweets with AI</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -447,8 +494,8 @@ def main():
             <div style='background: linear-gradient(135deg, #00897b 0%, #4db6ac 100%);
             padding: 20px; border-radius: 15px; color: white; text-align: center; margin-bottom: 30px;'>
                 <p style='margin: 0; font-size: 1.1em;'>
-                    <strong>Catch up fast.</strong><br/>
-                    Paste a thread, pick a summary style, and iterate until it is ready for your notes or newsletter.
+                    <strong>Master Twitter content.</strong><br/>
+                    Condense threads into insights or craft catchy tweets that engage your audience.
                 </p>
             </div>
             """,
@@ -460,7 +507,7 @@ def main():
         with st.form("chat_form", clear_on_submit=True):
             user_input = st.text_area(
                 "Message",
-                placeholder="Paste the entire Twitter thread text or your notes...",
+                placeholder="Paste a Twitter thread to summarize, or describe a topic to generate tweets...",
                 key=f"user_input_{st.session_state.input_key}",
                 label_visibility="collapsed",
                 height=200,
@@ -478,7 +525,7 @@ def main():
                 }
             )
 
-            with st.spinner("Summarizer is processing the thread..."):
+            with st.spinner("Twitter Assistant is working..."):
                 reply = get_summary_response(user_input.strip())
 
             st.session_state.history.append(

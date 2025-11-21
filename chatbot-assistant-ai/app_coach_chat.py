@@ -27,7 +27,7 @@ load_dotenv()
 
 st.set_page_config(
     page_title="Interview Coach Bot",
-    page_icon="🎤",
+    page_icon="",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -228,7 +228,7 @@ def get_theme_colors():
 def display_chat_history():
     """Display chat history with modern UI"""
     if not st.session_state.history:
-        st.info("🎯 Start your interview practice! You can:\n- Ask for a practice question\n- Answer a question\n- Request feedback on your response\n- Ask for interview tips")
+        st.info("Start your interview practice! You can:\n- Ask for a practice question\n- Answer a question\n- Request feedback on your response\n- Ask for interview tips")
         return
 
     for msg in st.session_state.history:
@@ -241,11 +241,11 @@ def display_chat_history():
                 pass
 
         if msg["role"] == "user":
-            with st.chat_message("user", avatar="👤"):
+            with st.chat_message("user"):
                 st.markdown(f"**You{timestamp_display}**")
                 st.write(msg['content'])
         elif msg["role"] == "assistant":
-            with st.chat_message("assistant", avatar="🎤"):
+            with st.chat_message("assistant"):
                 st.markdown(f"**Interview Coach{timestamp_display}**")
                 st.write(msg['content'])
 
@@ -253,13 +253,12 @@ def display_chat_history():
 def render_sidebar():
     """Render sidebar with settings"""
     with st.sidebar:
-        st.image("https://img.icons8.com/clouds/100/000000/microphone.png", width=80)
-        st.title("⚙️ Settings")
+        st.title("Settings")
 
         st.divider()
 
         # Interview Mode Selection
-        st.subheader("🎯 Interview Mode")
+        st.subheader("Interview Mode")
 
         interview_modes = ["General", "Behavioral", "Technical", "Mock Interview"]
         st.session_state.interview_mode = st.selectbox(
@@ -272,7 +271,7 @@ def render_sidebar():
         st.divider()
 
         # Model Provider Selection
-        st.subheader("🤖 Model Selection")
+        st.subheader("Model Selection")
 
         provider_options = {
             "Ollama (Cloud)": "ollama_cloud",
@@ -304,9 +303,9 @@ def render_sidebar():
             # Show API key status
             api_key = os.getenv("OPENAI_API_KEY")
             if api_key:
-                st.success("✅ API Key loaded from .env")
+                st.success("API Key loaded from .env")
             else:
-                st.error("❌ No API key found in .env")
+                st.error("No API key found in .env")
 
         elif selected_provider == "ollama":
             local_models = {k: v["name"] for k, v in OLLAMA_MODELS.items() if v["provider"] == "ollama"}
@@ -339,63 +338,26 @@ def render_sidebar():
 
         st.divider()
 
-        # UI Customization
-        st.subheader("🎨 Appearance")
-
-        theme_options = ["default", "dark", "professional", "vibrant"]
-        st.session_state.theme = st.selectbox(
-            "Theme",
-            options=theme_options,
-            index=theme_options.index(st.session_state.theme),
-            format_func=lambda x: x.title()
-        )
-
-        st.session_state.show_timestamps = st.checkbox(
-            "Show timestamps",
-            value=st.session_state.show_timestamps
-        )
-
-        st.divider()
-
-        # Quick Actions
-        st.subheader("⚡ Quick Actions")
-
-        if st.button("📋 Sample Questions", use_container_width=True):
-            sample_questions = {
-                "Behavioral": "Tell me about a time when you faced a difficult challenge at work.",
-                "Technical": "Explain the difference between a stack and a queue.",
-                "General": "What are your greatest strengths and weaknesses?"
-            }
-            question = sample_questions.get(st.session_state.interview_mode, sample_questions["General"])
-            st.session_state.history.append({
-                "role": "assistant",
-                "content": f"Here's a practice question for you:\n\n{question}\n\nTake your time and answer as you would in a real interview.",
-                "timestamp": datetime.now().isoformat(),
-            })
-            st.rerun()
-
-        st.divider()
-
         # Session Controls
-        st.subheader("💬 Session Controls")
+        st.subheader("Session Controls")
 
         col1, col2 = st.columns(2)
 
         with col1:
-            if st.button("🔄 New Session", use_container_width=True):
+            if st.button("New Session", use_container_width=True):
                 st.session_state.history = []
                 st.session_state.input_key += 1
                 st.rerun()
 
         with col2:
-            if st.button("📥 Export", use_container_width=True):
+            if st.button("Export", use_container_width=True):
                 if st.session_state.history:
                     export_chat()
 
         # Statistics
         if st.session_state.history:
             st.divider()
-            st.subheader("📊 Statistics")
+            st.subheader("Statistics")
 
             total_messages = len(st.session_state.history)
             user_messages = len([m for m in st.session_state.history if m["role"] == "user"])
@@ -404,18 +366,6 @@ def render_sidebar():
             col1, col2 = st.columns(2)
             col1.metric("Your responses", user_messages)
             col2.metric("Coach feedback", bot_messages)
-
-        st.divider()
-
-        # Tips
-        st.subheader("💡 Interview Tips")
-        st.info(
-            "**STAR Method:**\n"
-            "- **S**ituation: Set the context\n"
-            "- **T**ask: Describe the challenge\n"
-            "- **A**ction: Explain what you did\n"
-            "- **R**esult: Share the outcome"
-        )
 
 
 def export_chat():
@@ -436,7 +386,7 @@ def export_chat():
         export_text += f"[{timestamp}] {role}:\n{msg['content']}\n\n"
 
     st.sidebar.download_button(
-        label="💾 Download Session",
+        label="Download Session",
         data=export_text,
         file_name=f"interview_practice_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
         mime="text/plain",
@@ -461,7 +411,7 @@ def main():
         st.markdown(
             """
             <div style='text-align: center; padding: 20px;'>
-                <h1 style='color: #1976d2; font-size: 3em; margin-bottom: 0;'>🎤 Interview Coach Bot</h1>
+                <h1 style='color: #1976d2; font-size: 3em; margin-bottom: 0;'>Interview Coach Bot</h1>
                 <p style='color: #666; font-size: 1.2em;'>Your Personal Interview Practice Partner</p>
             </div>
             """,
@@ -495,7 +445,7 @@ def main():
                 max_chars=2000
             )
 
-            submitted = st.form_submit_button("📤 Send", use_container_width=True, type="primary")
+            submitted = st.form_submit_button("Send", use_container_width=True, type="primary")
 
         # Handle message submission
         if submitted and user_input.strip():
@@ -507,7 +457,7 @@ def main():
             })
 
             # Get bot response
-            with st.spinner("🎤 Coach is reviewing your response..."):
+            with st.spinner("Coach is reviewing your response..."):
                 reply = get_coach_response(user_input.strip())
 
             # Add bot response to history

@@ -1,726 +1,660 @@
-# AI-Powered Resume Generator
-import streamlit as st
-import requests
-from fpdf import FPDF
-import re
-from langdetect import detect
-import json
-from datetime import datetime
-import base64
+"""
+AI Resume Builder - Conversational Assistant
+An interactive AI assistant that helps users build professional, ATS-optimized resumes
+through conversational dialogue and provides formatting guidance.
+"""
+
 import os
-import tempfile
-import time
-from io import BytesIO
+import re
+from datetime import datetime
+from typing import Dict, List
+from dotenv import load_dotenv
 
+import streamlit as st
+import openai
+
+try:
+    import ollama
+    OLLAMA_AVAILABLE = True
+except ImportError:
+    OLLAMA_AVAILABLE = False
+
+# Load environment variables
+load_dotenv()
+
+# ============================
 # Configuration
-OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_API_URL = "http://localhost:11434/api/tags"
-DEFAULT_MODEL = "mistral-nemo:latest"
+# ============================
 
-class ResumeGenerator:
-    def __init__(self):
-        self.supported_languages = {
-            'en': 'English',
-            'fr': 'French', 
-            'es': 'Spanish',
-            'de': 'German',
-            'it': 'Italian',
-            'pt': 'Portuguese'
-        }
-        
-        self.ats_prompts = {
-            'technical': "Focus on technical skills, certifications, and quantifiable achievements. Use industry-standard keywords and metrics.",
-            'creative': "Emphasize creative projects, portfolios, and innovative solutions. Highlight artistic and design skills.",
-            'management': "Focus on leadership experience, team management, and strategic achievements. Include budget management and team size.",
-            'sales': "Highlight sales figures, targets achieved, client relationships, and revenue generation.",
-            'general': "Create a balanced resume with clear sections and ATS-friendly formatting."
-        }
+st.set_page_config(
+    page_title="AI Resume Builder",
+    page_icon="📄",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
-    def check_ollama_connection(self):
-        """Vérifier la connexion à Ollama et la disponibilité du modèle"""
-        try:
-            # Test de connexion basique
-            response = requests.get(OLLAMA_API_URL, timeout=10)
-            if response.status_code != 200:
-                return False, "Ollama service not responding"
-            
-            # Vérifier les modèles disponibles
-            models = response.json().get('models', [])
-            model_names = [model.get('name', '') for model in models]
-            
-            if not any(DEFAULT_MODEL in name for name in model_names):
-                available_models = ', '.join(model_names) if model_names else "None"
-                return False, f"Model {DEFAULT_MODEL} not found. Available models: {available_models}"
-            
-            return True, "Connection successful"
-            
-        except requests.exceptions.Timeout:
-            return False, "Timeout connecting to Ollama service"
-        except requests.exceptions.ConnectionError:
-            return False, "Cannot connect to Ollama service. Is it running on localhost:11434?"
-        except Exception as e:
-            return False, f"Unexpected error: {str(e)}"
+# Model configurations
+OLLAMA_MODELS = {
+    "gpt-oss:120b-cloud": {"name": "GPT-OSS 120B (Cloud)", "provider": "ollama_cloud"},
+    "gpt-oss:20b-cloud": {"name": "GPT-OSS 20B (Cloud)", "provider": "ollama_cloud"},
+    "deepseek-v3.1:671b-cloud": {"name": "DeepSeek V3.1 671B (Cloud)", "provider": "ollama_cloud"},
+    "qwen3-coder:480b-cloud": {"name": "Qwen3 Coder 480B (Cloud)", "provider": "ollama_cloud"},
+    "kimi-k2:1t-cloud": {"name": "Kimi K2 1T (Cloud)", "provider": "ollama_cloud"},
+    "minimax-m2:cloud": {"name": "MiniMax M2 (Cloud)", "provider": "ollama_cloud"},
+    "glm-4.6:cloud": {"name": "GLM 4.6 (Cloud)", "provider": "ollama_cloud"},
+    "gpt-oss:20b": {"name": "GPT-OSS 20B (Local)", "provider": "ollama"},
+    "mistral-nemo:latest": {"name": "Mistral Nemo (Local)", "provider": "ollama"},
+    "codellama:13b": {"name": "CodeLlama 13B (Local)", "provider": "ollama"},
+    "llama3.1:8b": {"name": "Llama 3.1 8B (Local)", "provider": "ollama"},
+}
 
-    def detect_language(self, text):
-        """Detect the language of input text"""
-        try:
-            detected_lang = detect(text)
-            return detected_lang if detected_lang in self.supported_languages else 'en'
-        except:
-            return 'en'
+OPENAI_MODELS = {
+    "gpt-5-nano": {"name": "GPT-5 Nano", "provider": "openai"},
+    "gpt-4.1-nano": {"name": "GPT-4.1 Nano", "provider": "openai"},
+}
 
-    def get_language_specific_prompt(self, language_code):
-        """Get language-specific formatting instructions"""
-        language_instructions = {
-            'en': "Format the resume in English with standard US/UK formatting conventions.",
-            'fr': "Format the resume in French following European CV standards.",
-            'es': "Format the resume in Spanish with Latin American/Spanish formatting.",
-            'de': "Format the resume in German following German CV conventions.",
-            'it': "Format the resume in Italian with European formatting standards.",
-            'pt': "Format the resume in Portuguese with Brazilian/Portuguese conventions."
-        }
-        return language_instructions.get(language_code, language_instructions['en'])
+DEFAULT_MODEL = "gpt-oss:120b-cloud"
 
-    def generate_fallback_resume(self, name, job_role, experience, skills, education, summary):
-        """Generate a basic resume template when AI is not available"""
-        return f"""
-===========================================
-PROFESSIONAL RESUME
-===========================================
+# ============================
+# Session State Initialization
+# ============================
 
-{name.upper()}
-Target Position: {job_role}
+def initialize_session_state():
+    """Initialize all session state variables"""
+    if "history" not in st.session_state:
+        st.session_state.history = []
 
-===========================================
-PROFESSIONAL SUMMARY
-===========================================
+    if "selected_model" not in st.session_state:
+        st.session_state.selected_model = DEFAULT_MODEL
 
-{summary}
+    if "model_provider" not in st.session_state:
+        st.session_state.model_provider = "ollama_cloud"
 
-Experience Level: {experience} years in the field
+    if "input_key" not in st.session_state:
+        st.session_state.input_key = 0
 
-===========================================
-CORE COMPETENCIES
-===========================================
+    if "theme" not in st.session_state:
+        st.session_state.theme = "default"
 
-{skills}
+    if "show_timestamps" not in st.session_state:
+        st.session_state.show_timestamps = False
 
-===========================================
-PROFESSIONAL EXPERIENCE
-===========================================
+    if "resume_mode" not in st.session_state:
+        st.session_state.resume_mode = "Professional"
 
-{job_role} | {experience} Years
-• Developed and implemented solutions using core competencies
-• Collaborated with cross-functional teams to deliver projects
-• Applied technical skills to solve complex business challenges
-• Achieved measurable results through systematic approach
+initialize_session_state()
 
-===========================================
-EDUCATION
-===========================================
 
-{education}
+# ============================
+# Model Provider Functions
+# ============================
 
-===========================================
-KEY ACHIEVEMENTS
-===========================================
+def clean_html_tags(text: str) -> str:
+    """Remove all HTML tags from text"""
+    cleaned = re.sub(r'<[^>]+>', '', text)
+    return cleaned
 
-• Strong foundation in {skills.split(',')[0].strip() if skills else 'relevant technologies'}
-• Proven track record of {experience} years in professional development
-• Expertise in multiple technical domains and methodologies
 
-Contact Information: [Your Phone] | [Your Email] | [Your LinkedIn]
-"""
-
-    def generate_structured_prompt(self, name, job_role, experience, skills, education, 
-                                 summary, language, ats_type, additional_sections):
-        """Generate a comprehensive, structured prompt for resume generation"""
-        
-        detected_lang = self.detect_language(f"{name} {job_role} {summary}")
-        language_instruction = self.get_language_specific_prompt(detected_lang)
-        ats_instruction = self.ats_prompts.get(ats_type, self.ats_prompts['general'])
-        
-        base_prompt = f"""
-Create a professional, ATS-optimized resume with the following specifications:
-
-PERSONAL INFORMATION:
-- Name: {name}
-- Target Role: {job_role}
-- Years of Experience: {experience}
-
-CORE DETAILS:
-- Skills: {skills}
-- Education: {education}
-- Professional Summary: {summary}
-
-FORMATTING REQUIREMENTS:
-- {language_instruction}
-- {ats_instruction}
-- Use clear section headers: PROFESSIONAL SUMMARY, EXPERIENCE, EDUCATION, SKILLS, etc.
-- Include bullet points for achievements with quantifiable metrics where possible
-- Ensure ATS compatibility with standard formatting
-- Professional tone and language
-
-ADDITIONAL SECTIONS TO INCLUDE:
-{additional_sections}
-
-STRUCTURE:
-1. Header with contact information placeholder
-2. Professional Summary (3-4 lines)
-3. Core Competencies/Skills
-4. Professional Experience (with achievements and metrics)
-5. Education
-6. Additional sections as specified
-
-Generate a complete, professional resume that would pass ATS screening and impress hiring managers.
-"""
-        return base_prompt
-
-    def generate_resume(self, name, job_role, experience, skills, education, 
-                       summary, language, ats_type, additional_sections=""):
-        """Generate resume using Mistral-Nemo model with fallback"""
-        
-        # Check connection first
-        is_connected, connection_message = self.check_ollama_connection()
-        
-        if not is_connected:
-            st.warning(f"AI Service Issue: {connection_message}")
-            st.info("Using fallback template generation...")
-            return self.generate_fallback_resume(name, job_role, experience, skills, education, summary)
-        
-        prompt = self.generate_structured_prompt(
-            name, job_role, experience, skills, education, 
-            summary, language, ats_type, additional_sections
+def call_ollama(messages: List[Dict], model: str) -> str:
+    """Call Ollama API"""
+    try:
+        response = ollama.chat(
+            model=model,
+            messages=messages,
         )
-        
-        payload = {
-            "model": DEFAULT_MODEL,
-            "prompt": prompt,
-            "stream": False,
-            "options": {
-                "temperature": 0.7,
-                "top_p": 0.9,
-                "num_predict": 2000
-            }
-        }
-        
-        try:
-            # Increased timeout and better error handling
-            response = requests.post(OLLAMA_URL, json=payload, timeout=120)
-            
-            if response.status_code == 200:
-                result = response.json().get("response", "")
-                if result:
-                    return self.format_resume_sections(result)
-                else:
-                    st.warning("Empty response from AI. Using fallback template...")
-                    return self.generate_fallback_resume(name, job_role, experience, skills, education, summary)
-            else:
-                st.error(f"AI Service Error: {response.status_code} - {response.text}")
-                return self.generate_fallback_resume(name, job_role, experience, skills, education, summary)
-                
-        except requests.exceptions.Timeout:
-            st.warning("AI generation timed out. Using fallback template...")
-            return self.generate_fallback_resume(name, job_role, experience, skills, education, summary)
-        except requests.exceptions.RequestException as e:
-            st.error(f"Connection Error: {str(e)}")
-            return self.generate_fallback_resume(name, job_role, experience, skills, education, summary)
+        content = response["message"]["content"].strip()
+        return clean_html_tags(content)
+    except Exception as e:
+        return f"Ollama Error: {str(e)}"
 
-    def format_resume_sections(self, resume_text):
-        """Format resume into clear sections"""
-        # Add section separators and formatting
-        sections = [
-            "PROFESSIONAL SUMMARY", "CORE COMPETENCIES", "PROFESSIONAL EXPERIENCE",
-            "EDUCATION", "SKILLS", "CERTIFICATIONS", "PROJECTS", "ACHIEVEMENTS"
-        ]
-        
-        formatted_text = resume_text
-        for section in sections:
-            formatted_text = re.sub(
-                f"({section})", 
-                f"\n{'='*50}\n\\1\n{'='*50}\n", 
-                formatted_text, 
-                flags=re.IGNORECASE
+
+def call_openai(messages: List[Dict], model: str) -> str:
+    """Call OpenAI API"""
+    api_key = os.getenv("OPENAI_API_KEY")
+
+    if not api_key:
+        return "Error: OpenAI API key not found in environment variables."
+
+    try:
+        client = openai.OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+        )
+
+        content = response.choices[0].message.content.strip() if response.choices else ""
+
+        if not content:
+            return "I'm having trouble generating that section. Could you provide more details?"
+
+        return clean_html_tags(content)
+
+    except Exception as e:
+        return f"OpenAI Error: {str(e)}"
+
+
+# ============================
+# Main Chat Function
+# ============================
+
+def get_resume_response(user_input: str) -> str:
+    """
+    Get resume building assistance from selected AI model
+    """
+    resume_modes = {
+        "Professional": (
+            "You are an expert resume writer and career coach. Help users build professional, "
+            "ATS-optimized resumes through conversational guidance. Ask clarifying questions about their "
+            "experience, skills, education, and career goals. Provide specific advice on how to phrase "
+            "accomplishments using action verbs and quantifiable metrics. Suggest improvements to make "
+            "their resume more impactful and industry-appropriate. When they provide information, help "
+            "them craft compelling bullet points and sections. Be encouraging and constructive. "
+            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
+            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
+        ),
+        "Resume Enhancer": (
+            "You are a professional resume enhancement specialist who transforms plain or basic resume bullet points "
+            "into powerful, impactful statements that make job seekers stand out. Your expertise lies in rewriting "
+            "resume content to be more professional, action-driven, and achievement-oriented. When users provide "
+            "their existing bullet points or resume sections, you rewrite them using: strong action verbs, "
+            "quantifiable achievements (metrics, percentages, numbers), industry-specific keywords for ATS optimization, "
+            "clear cause-and-effect relationships showing impact, and professional language that highlights value. "
+            "You also identify weak phrases like 'responsible for' or 'helped with' and transform them into powerful "
+            "statements that demonstrate concrete accomplishments. Ask clarifying questions about scope, impact, "
+            "or metrics if the original content lacks specificity. Then provide multiple enhanced versions with "
+            "explanations of what makes each version stronger. Be enthusiastic about helping job seekers level up "
+            "their resume game and stand out in competitive job markets. "
+            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
+            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
+        ),
+        "Technical": (
+            "You are an expert technical resume writer specializing in engineering and tech roles. "
+            "Help users create resumes that highlight technical skills, projects, certifications, and "
+            "quantifiable achievements. Focus on programming languages, frameworks, tools, system design, "
+            "and technical methodologies. Guide them to use industry-standard keywords for ATS optimization. "
+            "Ask about their tech stack, project impact, and technical leadership experience. Provide examples "
+            "of strong technical bullet points with metrics and concrete results. "
+            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
+            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
+        ),
+        "Creative": (
+            "You are an expert resume writer for creative professionals in design, marketing, and media. "
+            "Help users showcase their creative work, campaigns, portfolios, and innovative projects. "
+            "Focus on impact metrics, audience reach, brand development, and artistic achievements. "
+            "Guide them to balance creativity with professionalism and ATS-friendliness. Ask about their "
+            "creative process, tools, and measurable results. Emphasize visual and conceptual accomplishments. "
+            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
+            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
+        ),
+        "Executive": (
+            "You are an executive resume writer specializing in senior leadership roles. Help users "
+            "create strategic, results-driven resumes that highlight leadership experience, strategic vision, "
+            "P&L responsibility, organizational transformation, and business impact. Focus on high-level "
+            "accomplishments, team leadership, revenue growth, operational excellence, and executive presence. "
+            "Ask about their leadership philosophy, team size, budget responsibility, and strategic initiatives. "
+            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
+            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
+        ),
+        "Entry-Level": (
+            "You are a resume writer specializing in entry-level and early-career professionals. "
+            "Help users create strong resumes even with limited work experience by emphasizing education, "
+            "internships, projects, relevant coursework, volunteer work, and transferable skills. Guide them "
+            "to showcase potential, enthusiasm, and quick learning ability. Ask about academic achievements, "
+            "extracurriculars, personal projects, and any work experience. Help them frame experiences "
+            "professionally and identify transferable skills. "
+            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
+            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
+        ),
+    }
+
+    system_message = {
+        "role": "system",
+        "content": resume_modes.get(st.session_state.resume_mode, resume_modes["Professional"]),
+    }
+
+    messages = [system_message]
+
+    for msg in st.session_state.history:
+        if msg["role"] in ("user", "assistant"):
+            messages.append({
+                "role": msg["role"],
+                "content": msg["content"],
+            })
+
+    messages.append({"role": "user", "content": user_input})
+
+    provider = st.session_state.model_provider
+    model = st.session_state.selected_model
+
+    if provider == "openai":
+        return call_openai(messages, model)
+    elif provider in ("ollama", "ollama_cloud"):
+        return call_ollama(messages, model)
+    else:
+        return "Error: Unknown model provider selected."
+
+
+# ============================
+# UI Components
+# ============================
+
+def get_theme_colors():
+    """Return theme-specific color schemes"""
+    themes = {
+        "default": {
+            "user_bg": "#e3f2fd",
+            "bot_bg": "#f5f5f5",
+            "gradient_start": "#2196f3",
+            "gradient_end": "#64b5f6",
+        },
+        "dark": {
+            "user_bg": "#263238",
+            "bot_bg": "#37474f",
+            "gradient_start": "#1565c0",
+            "gradient_end": "#1976d2",
+        },
+        "professional": {
+            "user_bg": "#e8eaf6",
+            "bot_bg": "#fafafa",
+            "gradient_start": "#3f51b5",
+            "gradient_end": "#5c6bc0",
+        },
+        "modern": {
+            "user_bg": "#e0f2f1",
+            "bot_bg": "#fafafa",
+            "gradient_start": "#00897b",
+            "gradient_end": "#26a69a",
+        },
+        "enhancer": {
+            "user_bg": "#fff3e0",
+            "bot_bg": "#fafafa",
+            "gradient_start": "#ff6f00",
+            "gradient_end": "#ffa726",
+        },
+    }
+    return themes.get(st.session_state.theme, themes["default"])
+
+
+def display_chat_history():
+    """Display chat history with modern UI"""
+    if not st.session_state.history:
+        st.info("👋 Hi! I'm your AI Resume Builder. Let's create an amazing resume together! Tell me about your target role, experience, skills, or ask for guidance.")
+        return
+
+    for msg in st.session_state.history:
+        timestamp_display = ""
+        if st.session_state.show_timestamps and "timestamp" in msg:
+            try:
+                dt = datetime.fromisoformat(msg["timestamp"])
+                timestamp_display = f" {dt.strftime('%H:%M')}"
+            except Exception:
+                pass
+
+        if msg["role"] == "user":
+            with st.chat_message("user"):
+                st.markdown(f"**You{timestamp_display}**")
+                st.write(msg["content"])
+        elif msg["role"] == "assistant":
+            with st.chat_message("assistant"):
+                st.markdown(f"**Resume Builder{timestamp_display}**")
+                st.write(msg["content"])
+
+
+def render_sidebar():
+    """Render sidebar with settings"""
+    with st.sidebar:
+        st.title("Settings")
+
+        st.divider()
+
+        # Resume Mode Selection
+        st.subheader("Resume Style")
+
+        resume_modes = ["Professional", "Resume Enhancer", "Technical", "Creative", "Executive", "Entry-Level"]
+        st.session_state.resume_mode = st.selectbox(
+            "Mode",
+            options=resume_modes,
+            index=resume_modes.index(st.session_state.resume_mode),
+            help="Choose your resume specialization",
+        )
+
+        st.divider()
+
+        # Model Provider Selection
+        st.subheader("Model Selection")
+
+        provider_options = {
+            "Ollama (Cloud)": "ollama_cloud",
+            "Ollama (Local)": "ollama",
+            "OpenAI": "openai",
+        }
+
+        selected_provider_name = st.selectbox(
+            "Provider",
+            options=list(provider_options.keys()),
+            index=0,
+            help="Choose your AI model provider",
+        )
+
+        selected_provider = provider_options[selected_provider_name]
+
+        if selected_provider == "openai":
+            available_models = {k: v["name"] for k, v in OPENAI_MODELS.items()}
+            model_key = st.selectbox(
+                "Model",
+                options=list(available_models.keys()),
+                format_func=lambda x: available_models[x],
+                help="Select OpenAI model",
             )
-        
-        return formatted_text
+            st.session_state.model_provider = "openai"
+            st.session_state.selected_model = model_key
 
-    def clean_text_for_pdf(self, text):
-        """Clean text to remove problematic Unicode characters for PDF generation"""
-        # Dictionary of common Unicode characters and their ASCII replacements
-        unicode_replacements = {
-            '\u0153': 'oe',  # œ
-            '\u0152': 'OE',  # Œ
-            '\u00e0': 'a',   # à
-            '\u00e1': 'a',   # á
-            '\u00e2': 'a',   # â
-            '\u00e4': 'a',   # ä
-            '\u00e8': 'e',   # è
-            '\u00e9': 'e',   # é
-            '\u00ea': 'e',   # ê
-            '\u00eb': 'e',   # ë
-            '\u00ec': 'i',   # ì
-            '\u00ed': 'i',   # í
-            '\u00ee': 'i',   # î
-            '\u00ef': 'i',   # ï
-            '\u00f2': 'o',   # ò
-            '\u00f3': 'o',   # ó
-            '\u00f4': 'o',   # ô
-            '\u00f6': 'o',   # ö
-            '\u00f9': 'u',   # ù
-            '\u00fa': 'u',   # ú
-            '\u00fb': 'u',   # û
-            '\u00fc': 'u',   # ü
-            '\u00f1': 'n',   # ñ
-            '\u00e7': 'c',   # ç
-            '\u2013': '-',   # en dash
-            '\u2014': '-',   # em dash
-            '\u2018': "'",   # left single quotation mark
-            '\u2019': "'",   # right single quotation mark
-            '\u201c': '"',   # left double quotation mark
-            '\u201d': '"',   # right double quotation mark
-            '\u2022': '•',   # bullet point
-            '\u2026': '...' # ellipsis
-        }
-        
-        # Replace Unicode characters
-        cleaned_text = text
-        for unicode_char, replacement in unicode_replacements.items():
-            cleaned_text = cleaned_text.replace(unicode_char, replacement)
-        
-        # Remove any remaining non-ASCII characters
-        cleaned_text = ''.join(char if ord(char) < 128 else '?' for char in cleaned_text)
-        
-        return cleaned_text
-
-    def generate_multi_page_pdf(self, resume_text, name):
-        """Generate a multi-page PDF with proper formatting and encoding handling"""
-        
-        # Clean the text first
-        clean_resume_text = self.clean_text_for_pdf(resume_text)
-        clean_name = self.clean_text_for_pdf(name)
-        
-        class PDF(FPDF):
-            def header(self):
-                self.set_font('Arial', 'B', 12)
-                self.cell(0, 10, 'Professional Resume', 0, 1, 'C')
-                self.ln(5)
-            
-            def footer(self):
-                self.set_y(-15)
-                self.set_font('Arial', 'I', 8)
-                self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
-            
-            def safe_cell(self, w, h, txt='', border=0, ln=0, align=''):
-                """Safe cell method that handles encoding issues"""
-                try:
-                    # Clean the text before adding to cell
-                    safe_txt = txt.encode('latin-1', 'replace').decode('latin-1')
-                    self.cell(w, h, safe_txt, border, ln, align)
-                except UnicodeEncodeError:
-                    # Fallback: remove problematic characters
-                    safe_txt = ''.join(char if ord(char) < 128 else '?' for char in txt)
-                    self.cell(w, h, safe_txt, border, ln, align)
-
-        pdf = PDF()
-        pdf.set_auto_page_break(auto=True, margin=15)
-        pdf.add_page()
-        
-        # Process text line by line
-        lines = clean_resume_text.split('\n')
-        
-        for line in lines:
-            line = line.strip()
-            if not line:
-                pdf.ln(3)
-                continue
-                
-            try:
-                # Handle section headers
-                if '=' in line and len(line) > 20:  # Section separator
-                    pdf.ln(5)
-                    continue
-                elif line.isupper() and len(line.split()) <= 4:  # Section title
-                    pdf.set_font('Arial', 'B', 14)
-                    pdf.safe_cell(0, 8, line, 0, 1, 'L')
-                    pdf.ln(2)
-                elif line.startswith('•') or line.startswith('-'):  # Bullet points
-                    pdf.set_font('Arial', '', 10)
-                    # Handle long bullet points with word wrap
-                    wrapped_lines = self.wrap_text(line, 85)
-                    for wrapped_line in wrapped_lines:
-                        pdf.safe_cell(0, 6, wrapped_line, 0, 1, 'L')
-                else:  # Regular text
-                    pdf.set_font('Arial', '', 11)
-                    # Handle long lines with word wrap
-                    wrapped_lines = self.wrap_text(line, 90)
-                    for wrapped_line in wrapped_lines:
-                        pdf.safe_cell(0, 7, wrapped_line, 0, 1, 'L')
-            
-            except Exception as e:
-                # Skip problematic lines but continue processing
-                continue
-        
-        # Generate PDF bytes safely without temp files
-        try:
-            # Use BytesIO instead of temp files to avoid Windows file locking issues
-            from io import BytesIO
-            pdf_buffer = BytesIO()
-            
-            # Get PDF content as string and encode properly
-            pdf_content = pdf.output(dest='S')
-            
-            # Handle encoding - FPDF returns bytes or string depending on version
-            if isinstance(pdf_content, str):
-                pdf_bytes = pdf_content.encode('latin-1')
+            api_key = os.getenv("OPENAI_API_KEY")
+            if api_key:
+                st.success("API Key loaded from .env")
             else:
-                pdf_bytes = pdf_content
-                
-            return pdf_bytes
-        
-        except Exception as e:
-            # Ultimate fallback - create a simple text-based PDF
-            st.warning(f"Advanced PDF generation failed: {str(e)}. Using simple format.")
-            return self.generate_simple_pdf(clean_resume_text, clean_name)
+                st.error("No API key found in .env")
 
-    def generate_simple_pdf(self, resume_text, name):
-        """Generate a simple PDF as fallback without temp files"""
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font('Arial', '', 12)
-        
-        # Split text into lines and add each line
-        lines = resume_text.split('\n')
-        for line in lines:
-            if len(line.strip()) > 0:
-                # Ensure line fits in PDF width
-                if len(line) > 90:
-                    words = line.split()
-                    current_line = ""
-                    for word in words:
-                        if len(current_line + " " + word) <= 90:
-                            current_line += (" " + word) if current_line else word
-                        else:
-                            if current_line:
-                                try:
-                                    pdf.cell(0, 6, current_line, 0, 1)
-                                except:
-                                    pdf.cell(0, 6, "Content encoding error", 0, 1)
-                            current_line = word
-                    if current_line:
-                        try:
-                            pdf.cell(0, 6, current_line, 0, 1)
-                        except:
-                            pdf.cell(0, 6, "Content encoding error", 0, 1)
-                else:
-                    try:
-                        pdf.cell(0, 6, line, 0, 1)
-                    except:
-                        pdf.cell(0, 6, "Content encoding error", 0, 1)
+        elif selected_provider == "ollama":
+            local_models = {k: v["name"] for k, v in OLLAMA_MODELS.items() if v["provider"] == "ollama"}
+            if local_models:
+                model_key = st.selectbox(
+                    "Model",
+                    options=list(local_models.keys()),
+                    format_func=lambda x: local_models[x],
+                    help="Select local Ollama model",
+                )
+                st.session_state.model_provider = "ollama"
+                st.session_state.selected_model = model_key
             else:
-                pdf.ln(3)
-        
-        # Return as bytes without temp file
-        try:
-            # Get PDF content directly
-            pdf_content = pdf.output(dest='S')
-            
-            # Handle encoding - FPDF returns bytes or string depending on version
-            if isinstance(pdf_content, str):
-                pdf_bytes = pdf_content.encode('latin-1')
-            else:
-                pdf_bytes = pdf_content
-                
-            return pdf_bytes
-        except Exception as e:
-            # If all else fails, create a minimal text PDF
-            st.error(f"All PDF generation methods failed: {str(e)}")
-            # Return a basic PDF with error message
-            error_pdf = FPDF()
-            error_pdf.add_page()
-            error_pdf.set_font('Arial', '', 12)
-            error_pdf.cell(0, 10, "PDF generation encountered encoding issues.", 0, 1)
-            error_pdf.cell(0, 10, "Please use the text download option.", 0, 1)
-            
-            try:
-                error_content = error_pdf.output(dest='S')
-                if isinstance(error_content, str):
-                    return error_content.encode('latin-1', 'replace')
-                else:
-                    return error_content
-            except:
-                # Return empty bytes if even error PDF fails
-                return b""
+                st.warning("No local Ollama models found")
 
-    def wrap_text(self, text, max_length):
-        """Wrap text to fit PDF width"""
-        if len(text) <= max_length:
-            return [text]
-        
-        words = text.split()
-        lines = []
-        current_line = ""
-        
-        for word in words:
-            if len(current_line + " " + word) <= max_length:
-                current_line += (" " + word) if current_line else word
-            else:
-                if current_line:
-                    lines.append(current_line)
-                current_line = word
-        
-        if current_line:
-            lines.append(current_line)
-        
-        return lines
+        else:  # ollama_cloud
+            cloud_models = {k: v["name"] for k, v in OLLAMA_MODELS.items() if v["provider"] == "ollama_cloud"}
+            model_key = st.selectbox(
+                "Model",
+                options=list(cloud_models.keys()),
+                format_func=lambda x: cloud_models[x],
+                index=0,
+                help="Select Ollama cloud model",
+            )
+            st.session_state.model_provider = "ollama_cloud"
+            st.session_state.selected_model = model_key
+
+        st.info(f"**Current Model:**\n{st.session_state.selected_model}")
+
+        st.divider()
+
+        # UI Customization
+        st.subheader("Appearance")
+
+        theme_options = ["default", "dark", "professional", "modern", "enhancer"]
+        st.session_state.theme = st.selectbox(
+            "Theme",
+            options=theme_options,
+            index=theme_options.index(st.session_state.theme),
+            format_func=lambda x: x.title(),
+        )
+
+        st.session_state.show_timestamps = st.checkbox(
+            "Show timestamps",
+            value=st.session_state.show_timestamps,
+        )
+
+        st.divider()
+
+        # Quick Actions
+        st.subheader("Quick Actions")
+
+        if st.button("Sample Question", use_container_width=True):
+            sample_prompts = {
+                "Professional": "I'm applying for a Project Manager role. Help me write a strong professional summary.",
+                "Resume Enhancer": "Can you enhance this bullet point: 'Responsible for managing customer accounts and handling support tickets.'",
+                "Technical": "I'm a software engineer with 5 years of experience in Python and cloud technologies. How should I structure my technical skills section?",
+                "Creative": "I'm a graphic designer. How can I showcase my design projects effectively on my resume?",
+                "Executive": "I'm a VP of Operations. How do I highlight my strategic leadership and P&L responsibility?",
+                "Entry-Level": "I'm a recent graduate looking for my first job. How do I make my resume stand out with limited experience?",
+            }
+            prompt = sample_prompts.get(st.session_state.resume_mode, sample_prompts["Professional"])
+            st.session_state.history.append({
+                "role": "assistant",
+                "content": f"Here's a sample question to get started:\n\n{prompt}\n\nFeel free to share your own details, and I'll help you craft a great resume!",
+                "timestamp": datetime.now().isoformat(),
+            })
+            st.rerun()
+
+        st.divider()
+
+        # Session Controls
+        st.subheader("Session Controls")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("New Session", use_container_width=True):
+                st.session_state.history = []
+                st.session_state.input_key += 1
+                st.rerun()
+
+        with col2:
+            if st.button("Export", use_container_width=True):
+                if st.session_state.history:
+                    export_chat()
+
+        if st.session_state.history:
+            st.divider()
+            st.subheader("Statistics")
+
+            total_messages = len(st.session_state.history)
+            user_messages = len([m for m in st.session_state.history if m["role"] == "user"])
+            bot_messages = total_messages - user_messages
+
+            col1, col2 = st.columns(2)
+            col1.metric("Your inputs", user_messages)
+            col2.metric("AI responses", bot_messages)
+
+        st.divider()
+
+        # Resume Tips
+        st.subheader("Resume Tips")
+        st.info(
+            "**ATS Optimization:**\n"
+            "- Use standard section headers\n"
+            "- Include relevant keywords\n"
+            "- Use bullet points with metrics\n"
+            "- Keep formatting simple and clean"
+        )
+
+
+def export_chat():
+    """Export chat history to text file"""
+    if not st.session_state.history:
+        st.error("No conversation to export")
+        return
+
+    export_text = "AI Resume Builder Session Export\n"
+    export_text += f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+    export_text += f"Mode: {st.session_state.resume_mode}\n"
+    export_text += f"Model: {st.session_state.selected_model}\n"
+    export_text += "=" * 50 + "\n\n"
+
+    for msg in st.session_state.history:
+        role = "You" if msg["role"] == "user" else "Resume Builder"
+        timestamp = msg.get("timestamp", "")
+        export_text += f"[{timestamp}] {role}:\n{msg['content']}\n\n"
+
+    st.sidebar.download_button(
+        label="Download Session",
+        data=export_text,
+        file_name=f"resume_builder_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+        mime="text/plain",
+        use_container_width=True,
+    )
+
+
+# ============================
+# Main Application
+# ============================
 
 def main():
-    st.set_page_config(
-        page_title="AI Resume Generator Pro",
-        page_icon="📄",
-        layout="wide"
-    )
-    
-    st.title("🚀 AI-Powered Resume Generator Pro")
-    st.markdown("*Powered by Mistral-Nemo with Advanced ATS Optimization*")
-    
-    # Initialize generator
-    generator = ResumeGenerator()
-    
-    # Check Ollama status in sidebar
-    with st.sidebar:
-        st.header("🔧 System Status")
-        
-        # Connection status
-        with st.spinner("Checking AI service..."):
-            is_connected, status_message = generator.check_ollama_connection()
-        
-        if is_connected:
-            st.success(f"✅ AI Service: Connected")
-        else:
-            st.error(f"❌ AI Service: {status_message}")
-            with st.expander("🔧 Troubleshooting"):
-                st.markdown("""
-                **To fix AI connection issues:**
-                
-                1. **Start Ollama service:**
-                   ```bash
-                   ollama serve
-                   ```
-                
-                2. **Install the model:**
-                   ```bash
-                   ollama pull mistral-nemo:latest
-                   ```
-                
-                3. **Verify installation:**
-                   ```bash
-                   ollama list
-                   ```
-                
-                **Note:** The app will use a template generator if AI is unavailable.
-                """)
-        
-        st.divider()
-        st.header("⚙️ Advanced Options")
-        
-        # Language selection
-        selected_language = st.selectbox(
-            "Resume Language",
-            options=list(generator.supported_languages.keys()),
-            format_func=lambda x: generator.supported_languages[x]
-        )
-        
-        # ATS optimization type
-        ats_type = st.selectbox(
-            "ATS Optimization Type",
-            options=list(generator.ats_prompts.keys()),
-            help="Select the type of role for optimized keyword usage"
-        )
-        
-        # Additional sections
-        st.subheader("Additional Sections")
-        additional_sections = []
-        
-        if st.checkbox("Certifications"):
-            additional_sections.append("- Professional Certifications section")
-        if st.checkbox("Projects"):
-            additional_sections.append("- Key Projects section with descriptions")
-        if st.checkbox("Achievements/Awards"):
-            additional_sections.append("- Achievements and Awards section")
-        if st.checkbox("Languages"):
-            additional_sections.append("- Language Proficiency section")
-        if st.checkbox("Publications"):
-            additional_sections.append("- Publications and Research section")
-        
-        additional_sections_text = "\n".join(additional_sections)
+    """Main application logic"""
 
-    # Main form
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("📝 Personal Information")
-        name = st.text_input("Full Name *", placeholder="John Doe")
-        job_role = st.text_input("Target Job Role *", placeholder="Software Engineer")
-        experience = st.slider("Years of Experience", 0, 50, 5)
-        
-        st.subheader("🎓 Education")
-        education = st.text_area(
-            "Education Details *", 
-            placeholder="B.Sc. Computer Science\nUniversity Name, Year",
-            height=100
-        )
-    
+    render_sidebar()
+
+    _, col2, _ = st.columns([1, 6, 1])
+
     with col2:
-        st.subheader("💼 Professional Details")
-        skills = st.text_area(
-            "Skills (comma-separated) *",
-            placeholder="Python, Machine Learning, Cloud Computing, Project Management",
-            height=100
-        )
-        
-        summary = st.text_area(
-            "Professional Summary *",
-            placeholder="Experienced software engineer with 5+ years in developing scalable applications...",
-            height=120
+        st.markdown(
+            """
+            <div style='text-align: center; padding: 20px;'>
+                <h1 style='color: #2196f3; font-size: 3em; margin-bottom: 0;'>📄 AI Resume Builder</h1>
+                <p style='color: #666; font-size: 1.2em;'>Build professional, ATS-optimized resumes with AI assistance</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
 
-    # Generate button
-    if st.button("🎯 Generate Professional Resume", type="primary"):
-        if not all([name, job_role, skills, education, summary]):
-            st.error("Please fill in all required fields marked with *")
-        else:
-            with st.spinner("Generating your professional resume..."):
-                resume_text = generator.generate_resume(
-                    name, job_role, experience, skills, education, 
-                    summary, selected_language, ats_type, additional_sections_text
-                )
-                
-            # Store in session state for downloads
-            st.session_state.resume_text = resume_text
-            st.session_state.user_name = name
-                
-            # Display results
-            st.success("Resume generated successfully!")
-            
-            # Create tabs for different views
-            tab1, tab2, tab3 = st.tabs(["📄 Resume Preview", "📊 ATS Analysis", "⬇️ Download"])
-            
-            with tab1:
-                st.text_area("Generated Resume", resume_text, height=600)
-            
-            with tab2:
-                st.subheader("ATS Optimization Analysis")
-                
-                # Simple ATS analysis
-                word_count = len(resume_text.split())
-                skills_list = [skill.strip() for skill in skills.split(',')]
-                keyword_count = len([skill for skill in skills_list if skill.lower() in resume_text.lower()])
-                
-                col1, col2, col3 = st.columns(3)
-                col1.metric("Word Count", word_count)
-                col2.metric("Keywords Found", f"{keyword_count}/{len(skills_list)}")
-                col3.metric("ATS Score", f"{min(100, (keyword_count/len(skills_list))*100):.0f}%")
-                
-                st.info(f"**Selected ATS Type:** {ats_type.title()}\n\n**Optimization:** {generator.ats_prompts[ats_type]}")
-            
-            with tab3:
-                st.subheader("Download Options")
-                
-                # Text download
-                st.download_button(
-                    label="📄 Download as Text",
-                    data=resume_text,
-                    file_name=f"{name.replace(' ', '_')}_resume.txt",
-                    mime="text/plain"
-                )
-                
-                # PDF generation and download with improved error handling
-                if st.button("📋 Generate PDF Resume"):
-                    try:
-                        with st.spinner("Creating PDF..."):
-                            # Add small delay to ensure file system is ready
-                            time.sleep(0.1)
-                            pdf_bytes = generator.generate_multi_page_pdf(resume_text, name)
-                            
-                            if pdf_bytes and len(pdf_bytes) > 0:
-                                st.download_button(
-                                    label="⬇️ Download PDF Resume",
-                                    data=pdf_bytes,
-                                    file_name=f"{name.replace(' ', '_')}_resume.pdf",
-                                    mime="application/pdf",
-                                    key="main_pdf_download"
-                                )
-                                st.success("PDF ready for download!")
-                            else:
-                                st.error("PDF generation failed - empty file created")
-                                st.info("Please use the text download option above.")
-                    
-                    except Exception as e:
-                        st.error(f"PDF generation failed: {str(e)}")
-                        st.info("Please try the text download option above.")
-                        
-                        # Offer alternative - immediate text download
-                        st.markdown("**Alternative download:**")
-                        st.download_button(
-                            label="📄 Backup Text Download",
-                            data=resume_text,
-                            file_name=f"{name.replace(' ', '_')}_resume_backup.txt",
-                            mime="text/plain",
-                            key="backup_text_download"
-                        )
+        st.markdown(
+            """
+            <div style='background: linear-gradient(135deg, #2196f3 0%, #64b5f6 100%);
+            padding: 20px; border-radius: 15px; color: white; text-align: center; margin-bottom: 30px;'>
+                <p style='margin: 0; font-size: 1.1em;'>
+                    <strong>Create a standout resume!</strong><br/>
+                    Get expert guidance on structuring, writing, and optimizing your resume for any role.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-    # Show download section if resume exists in session
-    elif hasattr(st.session_state, 'resume_text'):
-        st.info("Previous resume available for download")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.download_button(
-                label="📄 Download Previous Resume (Text)",
-                data=st.session_state.resume_text,
-                file_name=f"{st.session_state.user_name.replace(' ', '_')}_resume.txt",
-                mime="text/plain",
-                key="previous_text_download"
+        display_chat_history()
+
+        with st.form("chat_form", clear_on_submit=True):
+            user_input = st.text_area(
+                "Message",
+                placeholder="Tell me about your experience, skills, or ask for resume advice...",
+                key=f"user_input_{st.session_state.input_key}",
+                label_visibility="collapsed",
+                height=100,
+                max_chars=2000,
             )
-        
-        with col2:
-            if st.button("📋 Generate Previous Resume PDF"):
-                try:
-                    with st.spinner("Creating PDF from previous resume..."):
-                        time.sleep(0.1)
-                        pdf_bytes = generator.generate_multi_page_pdf(
-                            st.session_state.resume_text, 
-                            st.session_state.user_name
-                        )
-                        
-                        if pdf_bytes and len(pdf_bytes) > 0:
-                            st.download_button(
-                                label="⬇️ Download Previous Resume (PDF)",
-                                data=pdf_bytes,
-                                file_name=f"{st.session_state.user_name.replace(' ', '_')}_resume.pdf",
-                                mime="application/pdf",
-                                key="previous_pdf_download"
-                            )
-                            st.success("Previous resume PDF ready!")
-                        else:
-                            st.error("Previous resume PDF generation failed")
-                            
-                except Exception as e:
-                    st.error(f"PDF generation error: {str(e)}")
-                    st.info("Use the text download option instead.")
 
-    # Footer
-    st.markdown("---")
+            submitted = st.form_submit_button("Send", use_container_width=True, type="primary")
+
+        if submitted and user_input.strip():
+            st.session_state.history.append({
+                "role": "user",
+                "content": user_input.strip(),
+                "timestamp": datetime.now().isoformat(),
+            })
+
+            with st.spinner("Building your resume..."):
+                reply = get_resume_response(user_input.strip())
+
+            st.session_state.history.append({
+                "role": "assistant",
+                "content": reply,
+                "timestamp": datetime.now().isoformat(),
+            })
+
+            st.session_state.input_key += 1
+            st.rerun()
+
+
+# ============================
+# Custom CSS
+# ============================
+
+def apply_custom_css():
+    """Apply custom CSS styling"""
+    colors = get_theme_colors()
+
     st.markdown(
-        """
-        <div style='text-align: center'>
-        <p>🤖 Powered by Mistral-Nemo AI | 📈 ATS-Optimized | 🌐 Multi-Language Support</p>
-        </div>
-        """, 
-        unsafe_allow_html=True
+        f"""
+        <style>
+        .main .block-container {{
+            padding-top: 1rem;
+            padding-bottom: 2rem;
+            max-width: 1200px;
+        }}
+        .stTextInput > div > div > input {{
+            border-radius: 25px;
+            border: 2px solid #e0e0e0;
+            padding: 12px 20px;
+            font-size: 1em;
+            transition: all 0.3s ease;
+        }}
+        .stTextInput > div > div > input:focus {{
+            border-color: {colors["gradient_start"]};
+            box-shadow: 0 0 15px rgba(33, 150, 243, 0.3);
+        }}
+        .stTextArea > div > div > textarea {{
+            border-radius: 15px;
+            border: 2px solid #e0e0e0;
+            padding: 12px 20px;
+            font-size: 1em;
+            transition: all 0.3s ease;
+            resize: vertical;
+        }}
+        .stTextArea > div > div > textarea:focus {{
+            border-color: {colors["gradient_start"]};
+            box-shadow: 0 0 15px rgba(33, 150, 243, 0.3);
+        }}
+        .stButton > button, .stFormSubmitButton > button {{
+            border-radius: 25px;
+            border: none;
+            background: linear-gradient(90deg, {colors["gradient_start"]} 0%, {colors["gradient_end"]} 100%);
+            color: white;
+            font-weight: 600;
+            padding: 12px 24px;
+            transition: all 0.3s ease;
+            font-size: 1em;
+        }}
+        .stButton > button:hover, .stFormSubmitButton > button:hover {{
+            background: linear-gradient(90deg, {colors["gradient_end"]} 0%, {colors["gradient_start"]} 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(33, 150, 243, 0.4);
+        }}
+        .stSelectbox > div > div {{
+            border-radius: 10px;
+            border: 2px solid #e0e0e0;
+        }}
+        .css-1d391kg {{
+            padding-top: 2rem;
+        }}
+        ::-webkit-scrollbar {{
+            width: 10px;
+        }}
+        ::-webkit-scrollbar-track {{
+            background: #f1f1f1;
+            border-radius: 10px;
+        }}
+        ::-webkit-scrollbar-thumb {{
+            background: linear-gradient(180deg, {colors["gradient_start"]} 0%, {colors["gradient_end"]} 100%);
+            border-radius: 10px;
+        }}
+        ::-webkit-scrollbar-thumb:hover {{
+            background: {colors["gradient_end"]};
+        }}
+        .stForm {{
+            border: none;
+            padding: 20px 0;
+        }}
+        .css-1xarl3l {{
+            background: linear-gradient(135deg, {colors["gradient_start"]}22 0%, {colors["gradient_end"]}22 100%);
+            border-radius: 10px;
+            padding: 10px;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
     )
+
+
+# ============================
+# Run Application
+# ============================
 
 if __name__ == "__main__":
+    apply_custom_css()
     main()

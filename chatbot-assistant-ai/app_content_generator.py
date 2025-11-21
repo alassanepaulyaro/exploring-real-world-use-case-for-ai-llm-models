@@ -1,8 +1,6 @@
-# Email Assistant
 """
-This tool summarizes long, back-and-forth email threads into a concise overview—
-highlighting who said what, key decisions, and action items. It also rewrites emails
-professionally and corrects grammar, spelling, and punctuation for polished writing.
+Content Generator Bot - Streamlit Implementation
+Produces blog posts and long-form content tailored to topic, audience, and tone.
 """
 
 import os
@@ -28,13 +26,11 @@ load_dotenv()
 # ============================
 
 st.set_page_config(
-    page_title="Email Assistant",
-    page_icon="📨",
+    page_title="Content Generator Bot",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# Model configurations
 OLLAMA_MODELS = {
     "gpt-oss:120b-cloud": {"name": "GPT-OSS 120B (Cloud)", "provider": "ollama_cloud"},
     "gpt-oss:20b-cloud": {"name": "GPT-OSS 20B (Cloud)", "provider": "ollama_cloud"},
@@ -60,6 +56,7 @@ DEFAULT_MODEL = "gpt-oss:120b-cloud"
 # Session State Initialization
 # ============================
 
+
 def initialize_session_state():
     """Initialize all session state variables"""
     if "history" not in st.session_state:
@@ -80,8 +77,9 @@ def initialize_session_state():
     if "show_timestamps" not in st.session_state:
         st.session_state.show_timestamps = False
 
-    if "summary_focus" not in st.session_state:
-        st.session_state.summary_focus = "Balanced"
+    if "content_mode" not in st.session_state:
+        st.session_state.content_mode = "Thought Leadership"
+
 
 initialize_session_state()
 
@@ -90,10 +88,10 @@ initialize_session_state()
 # Model Provider Functions
 # ============================
 
+
 def clean_html_tags(text: str) -> str:
-    """Remove all HTML tags from text"""
-    cleaned = re.sub(r'<[^>]+>', '', text)
-    return cleaned
+    """Strip HTML tags"""
+    return re.sub(r"<[^>]+>", "", text)
 
 
 def call_ollama(messages: List[Dict], model: str) -> str:
@@ -126,7 +124,7 @@ def call_openai(messages: List[Dict], model: str) -> str:
         content = response.choices[0].message.content.strip() if response.choices else ""
 
         if not content:
-            return "I couldn't generate a summary right now. Could you try again?"
+            return "I could not draft that content yet - mind adding more detail?"
 
         return clean_html_tags(content)
 
@@ -135,83 +133,41 @@ def call_openai(messages: List[Dict], model: str) -> str:
 
 
 # ============================
-# Main Summarization Function
+# Main Chat Function
 # ============================
 
-def get_email_summary(user_input: str) -> str:
-    """
-    Get email thread summary from selected AI model
-    """
-    summary_focuses = {
-        "Balanced": (
-            "You are an executive assistant. Your job is to read an entire email thread, "
-            "highlight key points, decisions made, who said what, and any action items. "
-            "Be clear, concise, and professional. Use bullet points if helpful. "
-            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
-            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
+
+def get_content_response(user_input: str) -> str:
+    """Route conversation through the selected AI model"""
+    content_modes = {
+        "Thought Leadership": (
+            "You are a senior content strategist writing thought leadership posts. "
+            "Deliver a compelling introduction, 2-3 sections with evidence, and a visionary close. Use markdown."
         ),
-        "Email Rewriter": (
-            "You are a professional email writing expert. Your specialty is rewriting emails to improve their tone, "
-            "clarity, and effectiveness. You can adapt any email into a more professional, polite, concise, or friendly tone—"
-            "depending on what the user needs. You're perfect for job applications, cold outreach, internal communication, "
-            "or simply leveling up someone's email game. When given an email, ask about the desired tone if not specified "
-            "(professional, friendly, concise, polite, formal, casual, persuasive), then rewrite the email accordingly. "
-            "Maintain the core message while improving structure, word choice, grammar, and overall impact. "
-            "Provide the rewritten version clearly and explain key improvements made. "
-            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
-            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
+        "How-To Guide": (
+            "You craft actionable step-by-step guides. "
+            "Include numbered steps, pro tips, and a call-to-action. Use markdown."
         ),
-        "Grammar Corrector": (
-            "You are an expert grammar and writing assistant who corrects spelling, grammar, and punctuation mistakes "
-            "in any text. Your specialty is polishing writing to make it professional, clear, and easy to read. "
-            "When users provide text (emails, essays, social posts, documents), you identify and fix errors including: "
-            "spelling mistakes, grammatical errors, punctuation problems, awkward phrasing, run-on sentences, "
-            "subject-verb agreement issues, and unclear wording. You also improve clarity, flow, and readability "
-            "while preserving the author's original voice and intent. Present the corrected version first, then "
-            "briefly explain the main corrections you made. Be thorough but maintain the natural style of the writing. "
-            "Perfect for anyone who wants polished, error-free writing for professional or personal use. "
-            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
-            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
+        "Product Spotlight": (
+            "You highlight products or features. "
+            "Explain benefits, use cases, and social proof in a persuasive tone. Use markdown."
         ),
-        "Action Items": (
-            "You are an executive assistant specializing in action item extraction. "
-            "Read the email thread and identify all action items, tasks, and deliverables. "
-            "For each action item, specify who is responsible, what needs to be done, and any mentioned deadlines. "
-            "Prioritize clarity and actionability. "
-            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
-            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
-        ),
-        "Decisions": (
-            "You are an executive assistant specializing in decision tracking. "
-            "Read the email thread and extract all decisions that were made, who made them, "
-            "the rationale provided, and any implications or next steps. "
-            "Organize by importance and chronological order. "
-            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
-            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
-        ),
-        "Key Participants": (
-            "You are an executive assistant specializing in conversation analysis. "
-            "Read the email thread and summarize the conversation by participant. "
-            "For each key participant, highlight their main points, requests, concerns, and contributions. "
-            "This helps understand different perspectives in the thread. "
-            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
-            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
+        "Narrative Story": (
+            "You write storytelling style posts with vivid imagery and emotional arc. "
+            "Use anecdotes, quotes, and reflective takeaways. Use markdown."
         ),
     }
 
     system_message = {
         "role": "system",
-        "content": summary_focuses.get(st.session_state.summary_focus, summary_focuses["Balanced"]),
+        "content": content_modes.get(st.session_state.content_mode, content_modes["Thought Leadership"]),
     }
 
     messages = [system_message]
 
     for msg in st.session_state.history:
         if msg["role"] in ("user", "assistant"):
-            messages.append({
-                "role": msg["role"],
-                "content": msg["content"],
-            })
+            messages.append({"role": msg["role"], "content": msg["content"]})
 
     messages.append({"role": "user", "content": user_input})
 
@@ -220,54 +176,42 @@ def get_email_summary(user_input: str) -> str:
 
     if provider == "openai":
         return call_openai(messages, model)
-    elif provider in ("ollama", "ollama_cloud"):
+    if provider in ("ollama", "ollama_cloud"):
         return call_ollama(messages, model)
-    else:
-        return "Error: Unknown model provider selected."
+    return "Error: Unknown model provider selected."
 
 
 # ============================
 # UI Components
 # ============================
 
+
 def get_theme_colors():
     """Return theme-specific color schemes"""
     themes = {
         "default": {
-            "user_bg": "#e3f2fd",
-            "bot_bg": "#f5f5f5",
-            "gradient_start": "#1565c0",
-            "gradient_end": "#42a5f5",
-        },
-        "dark": {
-            "user_bg": "#132743",
-            "bot_bg": "#1f4068",
-            "gradient_start": "#0d47a1",
-            "gradient_end": "#1976d2",
-        },
-        "professional": {
-            "user_bg": "#e8eaf6",
-            "bot_bg": "#fafafa",
-            "gradient_start": "#3f51b5",
-            "gradient_end": "#5c6bc0",
-        },
-        "modern": {
-            "user_bg": "#e0f2f1",
-            "bot_bg": "#fafafa",
-            "gradient_start": "#00897b",
-            "gradient_end": "#26a69a",
-        },
-        "writer": {
-            "user_bg": "#fce4ec",
-            "bot_bg": "#fafafa",
-            "gradient_start": "#c2185b",
-            "gradient_end": "#e91e63",
-        },
-        "corrector": {
             "user_bg": "#f3e5f5",
+            "bot_bg": "#f5f5f5",
+            "gradient_start": "#8e24aa",
+            "gradient_end": "#ce93d8",
+        },
+        "teal": {
+            "user_bg": "#e0f7fa",
+            "bot_bg": "#f1fbff",
+            "gradient_start": "#00838f",
+            "gradient_end": "#26c6da",
+        },
+        "sunset": {
+            "user_bg": "#fff3e0",
+            "bot_bg": "#fff8e1",
+            "gradient_start": "#fb8c00",
+            "gradient_end": "#ffd54f",
+        },
+        "slate": {
+            "user_bg": "#eceff1",
             "bot_bg": "#fafafa",
-            "gradient_start": "#7b1fa2",
-            "gradient_end": "#ab47bc",
+            "gradient_start": "#455a64",
+            "gradient_end": "#90a4ae",
         },
     }
     return themes.get(st.session_state.theme, themes["default"])
@@ -276,7 +220,7 @@ def get_theme_colors():
 def display_chat_history():
     """Display chat history with modern UI"""
     if not st.session_state.history:
-        st.info("📨 Paste an email to summarize, rewrite, correct grammar, or analyze! Choose your tool from the sidebar.")
+        st.info("Share your topic, audience, hook, and desired tone to generate long-form posts.")
         return
 
     for msg in st.session_state.history:
@@ -284,8 +228,8 @@ def display_chat_history():
         if st.session_state.show_timestamps and "timestamp" in msg:
             try:
                 dt = datetime.fromisoformat(msg["timestamp"])
-                timestamp_display = f" {dt.strftime('%H:%M')}"
-            except Exception:
+                timestamp_display = f" | {dt.strftime('%H:%M')}"
+            except ValueError:
                 pass
 
         if msg["role"] == "user":
@@ -294,33 +238,29 @@ def display_chat_history():
                 st.write(msg["content"])
         elif msg["role"] == "assistant":
             with st.chat_message("assistant"):
-                st.markdown(f"**Summarizer{timestamp_display}**")
+                st.markdown(f"**Content Bot{timestamp_display}**")
                 st.write(msg["content"])
 
 
 def render_sidebar():
     """Render sidebar with settings"""
     with st.sidebar:
-        st.title("Settings")
+        st.title("Content Settings")
 
         st.divider()
 
-        # Summary Focus Selection
-        st.subheader("Email Tools")
-
-        summary_focuses = ["Balanced", "Email Rewriter", "Grammar Corrector", "Action Items", "Decisions", "Key Participants"]
-        st.session_state.summary_focus = st.selectbox(
-            "Tool",
-            options=summary_focuses,
-            index=summary_focuses.index(st.session_state.summary_focus),
-            help="Choose the email tool you need",
+        st.subheader("Format Mode")
+        content_modes = ["Thought Leadership", "How-To Guide", "Product Spotlight", "Narrative Story"]
+        st.session_state.content_mode = st.selectbox(
+            "Mode",
+            options=content_modes,
+            index=content_modes.index(st.session_state.content_mode),
+            help="Select the type of post you want.",
         )
 
         st.divider()
 
-        # Model Provider Selection
         st.subheader("Model Selection")
-
         provider_options = {
             "Ollama (Cloud)": "ollama_cloud",
             "Ollama (Local)": "ollama",
@@ -367,7 +307,7 @@ def render_sidebar():
             else:
                 st.warning("No local Ollama models found")
 
-        else:  # ollama_cloud
+        else:
             cloud_models = {k: v["name"] for k, v in OLLAMA_MODELS.items() if v["provider"] == "ollama_cloud"}
             model_key = st.selectbox(
                 "Model",
@@ -383,9 +323,43 @@ def render_sidebar():
 
         st.divider()
 
-        # Session Controls
-        st.subheader("Session Controls")
+        st.subheader("Appearance")
+        theme_options = ["default", "teal", "sunset", "slate"]
+        st.session_state.theme = st.selectbox(
+            "Theme",
+            options=theme_options,
+            index=theme_options.index(st.session_state.theme),
+            format_func=lambda x: x.title(),
+        )
 
+        st.session_state.show_timestamps = st.checkbox(
+            "Show timestamps",
+            value=st.session_state.show_timestamps,
+        )
+
+        st.divider()
+
+        st.subheader("Quick Actions")
+        if st.button("Sample Prompt", use_container_width=True):
+            sample_prompts = {
+                "Thought Leadership": "Write about why responsible AI governance needs founders and policymakers in the same room.",
+                "How-To Guide": "Guide product marketers on repurposing webinars into newsletters.",
+                "Product Spotlight": "Introduce a new productivity app for remote teams, highlight differentiators.",
+                "Narrative Story": "Tell the story of a freelancer discovering their niche after burnout.",
+            }
+            prompt = sample_prompts.get(st.session_state.content_mode, sample_prompts["Thought Leadership"])
+            st.session_state.history.append(
+                {
+                    "role": "assistant",
+                    "content": f"Try prompting with:\n\n{prompt}",
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
+            st.rerun()
+
+        st.divider()
+
+        st.subheader("Session Controls")
         col1, col2 = st.columns(2)
 
         with col1:
@@ -401,15 +375,23 @@ def render_sidebar():
 
         if st.session_state.history:
             st.divider()
-            st.subheader("Statistics")
+            st.subheader("Content Stats")
 
             total_messages = len(st.session_state.history)
             user_messages = len([m for m in st.session_state.history if m["role"] == "user"])
             bot_messages = total_messages - user_messages
 
             col1, col2 = st.columns(2)
-            col1.metric("Email threads", user_messages)
-            col2.metric("Summaries", bot_messages)
+            col1.metric("Your briefs", user_messages)
+            col2.metric("Drafts generated", bot_messages)
+
+        st.divider()
+
+        st.subheader("Writing Tips")
+        st.info(
+            "Mention target audience, key points, voice, and word count to keep the draft on-brand. "
+            "Ask for outlines or intro variations if you need options."
+        )
 
 
 def export_chat():
@@ -418,21 +400,21 @@ def export_chat():
         st.error("No conversation to export")
         return
 
-    export_text = "Email Assistant Export\n"
+    export_text = "Content Generator Session Export\n"
     export_text += f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-    export_text += f"Focus: {st.session_state.summary_focus}\n"
+    export_text += f"Mode: {st.session_state.content_mode}\n"
     export_text += f"Model: {st.session_state.selected_model}\n"
     export_text += "=" * 50 + "\n\n"
 
     for msg in st.session_state.history:
-        role = "Email Thread" if msg["role"] == "user" else "Summary"
+        role = "You" if msg["role"] == "user" else "Content Bot"
         timestamp = msg.get("timestamp", "")
         export_text += f"[{timestamp}] {role}:\n{msg['content']}\n\n"
 
     st.sidebar.download_button(
         label="Download Session",
         data=export_text,
-        file_name=f"email_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+        file_name=f"content_generator_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
         mime="text/plain",
         use_container_width=True,
     )
@@ -442,9 +424,9 @@ def export_chat():
 # Main Application
 # ============================
 
+
 def main():
     """Main application logic"""
-
     render_sidebar()
 
     _, col2, _ = st.columns([1, 6, 1])
@@ -453,8 +435,8 @@ def main():
         st.markdown(
             """
             <div style='text-align: center; padding: 20px;'>
-                <h1 style='color: #1565c0; font-size: 3em; margin-bottom: 0;'>📨 Email Assistant</h1>
-                <p style='color: #666; font-size: 1.2em;'>Summarize, rewrite, and analyze emails with AI</p>
+                <h1 style='color: #8e24aa; font-size: 3em; margin-bottom: 0;'>Content Generator Bot</h1>
+                <p style='color: #666; font-size: 1.2em;'>Craft long-form content that speaks to your audience.</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -462,11 +444,11 @@ def main():
 
         st.markdown(
             """
-            <div style='background: linear-gradient(135deg, #1565c0 0%, #42a5f5 100%);
+            <div style='background: linear-gradient(135deg, #8e24aa 0%, #ce93d8 100%);
             padding: 20px; border-radius: 15px; color: white; text-align: center; margin-bottom: 30px;'>
                 <p style='margin: 0; font-size: 1.1em;'>
-                    <strong>Master your email communication!</strong><br/>
-                    Summarize threads, rewrite messages professionally, correct grammar, extract action items, and more.
+                    <strong>Create once, repurpose everywhere.</strong><br/>
+                    Outline your topic, audience, and tone, then iterate on sections, hooks, or CTAs.
                 </p>
             </div>
             """,
@@ -478,30 +460,34 @@ def main():
         with st.form("chat_form", clear_on_submit=True):
             user_input = st.text_area(
                 "Message",
-                placeholder="Paste an email or thread here...",
+                placeholder="Example: Topic, audience, key takeaways, desired tone...",
                 key=f"user_input_{st.session_state.input_key}",
                 label_visibility="collapsed",
-                height=200,
-                max_chars=10000,
+                height=140,
+                max_chars=2500,
             )
 
-            submitted = st.form_submit_button("Summarize", use_container_width=True, type="primary")
+            submitted = st.form_submit_button("Send", use_container_width=True, type="primary")
 
         if submitted and user_input.strip():
-            st.session_state.history.append({
-                "role": "user",
-                "content": user_input.strip(),
-                "timestamp": datetime.now().isoformat(),
-            })
+            st.session_state.history.append(
+                {
+                    "role": "user",
+                    "content": user_input.strip(),
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
 
-            with st.spinner("Generating summary..."):
-                reply = get_email_summary(user_input.strip())
+            with st.spinner("Content Bot is drafting..."):
+                reply = get_content_response(user_input.strip())
 
-            st.session_state.history.append({
-                "role": "assistant",
-                "content": reply,
-                "timestamp": datetime.now().isoformat(),
-            })
+            st.session_state.history.append(
+                {
+                    "role": "assistant",
+                    "content": reply,
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
 
             st.session_state.input_key += 1
             st.rerun()
@@ -510,6 +496,7 @@ def main():
 # ============================
 # Custom CSS
 # ============================
+
 
 def apply_custom_css():
     """Apply custom CSS styling"""
@@ -532,7 +519,7 @@ def apply_custom_css():
         }}
         .stTextInput > div > div > input:focus {{
             border-color: {colors["gradient_start"]};
-            box-shadow: 0 0 15px rgba(21, 101, 192, 0.3);
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
         }}
         .stTextArea > div > div > textarea {{
             border-radius: 15px;
@@ -544,7 +531,7 @@ def apply_custom_css():
         }}
         .stTextArea > div > div > textarea:focus {{
             border-color: {colors["gradient_start"]};
-            box-shadow: 0 0 15px rgba(21, 101, 192, 0.3);
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
         }}
         .stButton > button, .stFormSubmitButton > button {{
             border-radius: 25px;
@@ -559,7 +546,7 @@ def apply_custom_css():
         .stButton > button:hover, .stFormSubmitButton > button:hover {{
             background: linear-gradient(90deg, {colors["gradient_end"]} 0%, {colors["gradient_start"]} 100%);
             transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(21, 101, 192, 0.4);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
         }}
         .stSelectbox > div > div {{
             border-radius: 10px;
@@ -600,6 +587,7 @@ def apply_custom_css():
 # ============================
 # Run Application
 # ============================
+
 
 if __name__ == "__main__":
     apply_custom_css()
