@@ -1,6 +1,7 @@
-# Content Generator Bot
+# Shopping List Creator
 """
-Produces blog posts and long-form content tailored to topic, audience, and tone.
+Smart shopping list builder for any shopping needs - groceries, household items,
+office supplies, travel essentials, and more. Categorized, organized, and budget-friendly.
 """
 
 import os
@@ -26,7 +27,7 @@ load_dotenv()
 # ============================
 
 st.set_page_config(
-    page_title="Content Generator Bot",
+    page_title="Shopping List Creator",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -77,8 +78,8 @@ def initialize_session_state():
     if "show_timestamps" not in st.session_state:
         st.session_state.show_timestamps = False
 
-    if "content_mode" not in st.session_state:
-        st.session_state.content_mode = "Thought Leadership"
+    if "list_mode" not in st.session_state:
+        st.session_state.list_mode = "Groceries & Food"
 
 
 initialize_session_state()
@@ -124,7 +125,7 @@ def call_openai(messages: List[Dict], model: str) -> str:
         content = response.choices[0].message.content.strip() if response.choices else ""
 
         if not content:
-            return "I could not draft that content yet - mind adding more detail?"
+            return "I could not build your list yet - include meals, servings, or pantry notes."
 
         return clean_html_tags(content)
 
@@ -137,30 +138,55 @@ def call_openai(messages: List[Dict], model: str) -> str:
 # ============================
 
 
-def get_content_response(user_input: str) -> str:
-    """Route conversation through the selected AI model"""
-    content_modes = {
-        "Thought Leadership": (
-            "You are a senior content strategist writing thought leadership posts. "
-            "Deliver a compelling introduction, 2-3 sections with evidence, and a visionary close. Use markdown."
+def get_shopping_list(user_input: str) -> str:
+    """Route conversation through selected AI model"""
+    list_modes = {
+        "Groceries & Food": (
+            "You are a smart grocery shopping assistant. Create organized shopping lists for food and groceries. "
+            "Categorize items by store section (produce, dairy, meat, pantry, frozen, bakery). Include quantities, "
+            "suggest meal prep tips, and note storage recommendations. Consider dietary needs, household size, and budget. "
+            "Format your responses using plain text with markdown. Never use HTML tags."
         ),
-        "How-To Guide": (
-            "You craft actionable step-by-step guides. "
-            "Include numbered steps, pro tips, and a call-to-action. Use markdown."
+        "Household Essentials": (
+            "You are a household supplies organizer. Create shopping lists for cleaning supplies, toiletries, paper goods, "
+            "laundry items, and home maintenance products. Organize by category (bathroom, kitchen, laundry room, cleaning). "
+            "Suggest bulk buying opportunities, eco-friendly alternatives, and budget-friendly options. Note which items "
+            "can be bought in multi-packs or generic brands. "
+            "Format your responses using plain text with markdown. Never use HTML tags."
         ),
-        "Product Spotlight": (
-            "You highlight products or features. "
-            "Explain benefits, use cases, and social proof in a persuasive tone. Use markdown."
+        "Travel & Vacation": (
+            "You are a travel packing expert. Create comprehensive packing and shopping lists for trips. Include clothing, "
+            "toiletries, electronics, documents, medications, and destination-specific items. Organize by category and priority. "
+            "Consider trip duration, weather, activities planned, and airline restrictions. Suggest travel-sized options and "
+            "items that can be purchased at the destination to save luggage space. "
+            "Format your responses using plain text with markdown. Never use HTML tags."
         ),
-        "Narrative Story": (
-            "You write storytelling style posts with vivid imagery and emotional arc. "
-            "Use anecdotes, quotes, and reflective takeaways. Use markdown."
+        "Office & School Supplies": (
+            "You are an office and school supplies organizer. Create shopping lists for stationery, electronics, organizational "
+            "tools, and educational materials. Categorize by type (writing instruments, paper products, tech accessories, "
+            "storage solutions). Suggest bulk buying for frequently used items, budget-friendly alternatives, and quality "
+            "brands for important tools. Consider back-to-school seasons or office setup needs. "
+            "Format your responses using plain text with markdown. Never use HTML tags."
+        ),
+        "Party & Events": (
+            "You are an event planning assistant. Create shopping lists for parties, celebrations, and special events. "
+            "Include decorations, tableware, food & beverages, party favors, and entertainment supplies. Organize by category "
+            "and priority. Consider guest count, theme, budget, and venue requirements. Suggest DIY options, bulk buying "
+            "opportunities, and vendor recommendations for larger items. "
+            "Format your responses using plain text with markdown. Never use HTML tags."
+        ),
+        "Home Improvement": (
+            "You are a home improvement shopping guide. Create lists for DIY projects, home repairs, and renovations. "
+            "Include tools, materials, hardware, safety equipment, and supplies. Organize by project phase or room. "
+            "Provide quantity estimates, alternative materials, and budget considerations. Note which items might require "
+            "professional assistance or special permits. Suggest tool rentals vs. purchases for one-time projects. "
+            "Format your responses using plain text with markdown. Never use HTML tags."
         ),
     }
 
     system_message = {
         "role": "system",
-        "content": content_modes.get(st.session_state.content_mode, content_modes["Thought Leadership"]),
+        "content": list_modes.get(st.session_state.list_mode, list_modes["Groceries & Food"]),
     }
 
     messages = [system_message]
@@ -190,37 +216,37 @@ def get_theme_colors():
     """Return theme-specific color schemes"""
     themes = {
         "default": {
-            "user_bg": "#f3e5f5",
+            "user_bg": "#e8f5e9",
             "bot_bg": "#f5f5f5",
-            "gradient_start": "#8e24aa",
-            "gradient_end": "#ce93d8",
+            "gradient_start": "#43a047",
+            "gradient_end": "#81c784",
         },
-        "teal": {
-            "user_bg": "#e0f7fa",
-            "bot_bg": "#f1fbff",
-            "gradient_start": "#00838f",
-            "gradient_end": "#26c6da",
-        },
-        "sunset": {
+        "market": {
             "user_bg": "#fff3e0",
             "bot_bg": "#fff8e1",
             "gradient_start": "#fb8c00",
             "gradient_end": "#ffd54f",
         },
-        "slate": {
-            "user_bg": "#eceff1",
-            "bot_bg": "#fafafa",
-            "gradient_start": "#455a64",
+        "midnight": {
+            "user_bg": "#1c1c1c",
+            "bot_bg": "#2a2a2a",
+            "gradient_start": "#546e7a",
             "gradient_end": "#90a4ae",
+        },
+        "aqua": {
+            "user_bg": "#e0f7fa",
+            "bot_bg": "#f1fbff",
+            "gradient_start": "#00838f",
+            "gradient_end": "#4dd0e1",
         },
     }
     return themes.get(st.session_state.theme, themes["default"])
 
 
 def display_chat_history():
-    """Display chat history with modern UI"""
+    """Display chat history"""
     if not st.session_state.history:
-        st.info("Share your topic, audience, hook, and desired tone to generate long-form posts.")
+        st.info("Tell me what you need to shop for - groceries, household items, travel essentials, or any shopping list - and I'll organize it for you!")
         return
 
     for msg in st.session_state.history:
@@ -238,24 +264,24 @@ def display_chat_history():
                 st.write(msg["content"])
         elif msg["role"] == "assistant":
             with st.chat_message("assistant"):
-                st.markdown(f"**Content Bot{timestamp_display}**")
+                st.markdown(f"**List Bot{timestamp_display}**")
                 st.write(msg["content"])
 
 
 def render_sidebar():
     """Render sidebar with settings"""
     with st.sidebar:
-        st.title("Content Settings")
+        st.title("Shopping Settings")
 
         st.divider()
 
-        st.subheader("Format Mode")
-        content_modes = ["Thought Leadership", "How-To Guide", "Product Spotlight", "Narrative Story"]
-        st.session_state.content_mode = st.selectbox(
-            "Mode",
-            options=content_modes,
-            index=content_modes.index(st.session_state.content_mode),
-            help="Select the type of post you want.",
+        st.subheader("Shopping Category")
+        list_modes = ["Groceries & Food", "Household Essentials", "Travel & Vacation", "Office & School Supplies", "Party & Events", "Home Improvement"]
+        st.session_state.list_mode = st.selectbox(
+            "Category",
+            options=list_modes,
+            index=list_modes.index(st.session_state.list_mode) if st.session_state.list_mode in list_modes else 0,
+            help="Choose the type of shopping list you need.",
         )
 
         st.divider()
@@ -324,7 +350,7 @@ def render_sidebar():
         st.divider()
 
         st.subheader("Appearance")
-        theme_options = ["default", "teal", "sunset", "slate"]
+        theme_options = ["default", "market", "midnight", "aqua"]
         st.session_state.theme = st.selectbox(
             "Theme",
             options=theme_options,
@@ -342,16 +368,18 @@ def render_sidebar():
         st.subheader("Quick Actions")
         if st.button("Sample Prompt", use_container_width=True):
             sample_prompts = {
-                "Thought Leadership": "Write about why responsible AI governance needs founders and policymakers in the same room.",
-                "How-To Guide": "Guide product marketers on repurposing webinars into newsletters.",
-                "Product Spotlight": "Introduce a new productivity app for remote teams, highlight differentiators.",
-                "Narrative Story": "Tell the story of a freelancer discovering their niche after burnout.",
+                "Groceries & Food": "Weekly groceries for a family of 4: breakfast, lunches, dinners, and healthy snacks. Budget $150.",
+                "Household Essentials": "Restocking bathroom and kitchen cleaning supplies, plus paper towels and toiletries for the month.",
+                "Travel & Vacation": "2-week beach vacation to Hawaii for 2 adults. Need packing list and items to buy before trip.",
+                "Office & School Supplies": "Back-to-school supplies for 2 kids (grades 3 and 7) plus home office essentials.",
+                "Party & Events": "Birthday party for 30 people with outdoor BBQ theme. Need decorations, food, drinks, and supplies.",
+                "Home Improvement": "Painting bedroom walls and installing new curtain rods. List all tools and materials needed.",
             }
-            prompt = sample_prompts.get(st.session_state.content_mode, sample_prompts["Thought Leadership"])
+            prompt = sample_prompts.get(st.session_state.list_mode, sample_prompts["Groceries & Food"])
             st.session_state.history.append(
                 {
                     "role": "assistant",
-                    "content": f"Try prompting with:\n\n{prompt}",
+                    "content": f"Try asking:\n\n{prompt}",
                     "timestamp": datetime.now().isoformat(),
                 }
             )
@@ -375,22 +403,22 @@ def render_sidebar():
 
         if st.session_state.history:
             st.divider()
-            st.subheader("Content Stats")
+            st.subheader("List Stats")
 
             total_messages = len(st.session_state.history)
             user_messages = len([m for m in st.session_state.history if m["role"] == "user"])
             bot_messages = total_messages - user_messages
 
             col1, col2 = st.columns(2)
-            col1.metric("Your briefs", user_messages)
-            col2.metric("Drafts generated", bot_messages)
+            col1.metric("Your plans", user_messages)
+            col2.metric("Lists generated", bot_messages)
 
         st.divider()
 
-        st.subheader("Writing Tips")
+        st.subheader("Shopping Tips")
         st.info(
-            "Mention target audience, key points, voice, and word count to keep the draft on-brand. "
-            "Ask for outlines or intro variations if you need options."
+            "Be specific about quantities, budget, timeline, or special requirements. "
+            "Mention items you already have or store preferences for better recommendations."
         )
 
 
@@ -400,21 +428,21 @@ def export_chat():
         st.error("No conversation to export")
         return
 
-    export_text = "Content Generator Session Export\n"
+    export_text = "Shopping List Session Export\n"
     export_text += f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-    export_text += f"Mode: {st.session_state.content_mode}\n"
+    export_text += f"Mode: {st.session_state.list_mode}\n"
     export_text += f"Model: {st.session_state.selected_model}\n"
     export_text += "=" * 50 + "\n\n"
 
     for msg in st.session_state.history:
-        role = "You" if msg["role"] == "user" else "Content Bot"
+        role = "You" if msg["role"] == "user" else "List Bot"
         timestamp = msg.get("timestamp", "")
         export_text += f"[{timestamp}] {role}:\n{msg['content']}\n\n"
 
     st.sidebar.download_button(
         label="Download Session",
         data=export_text,
-        file_name=f"content_generator_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+        file_name=f"shopping_list_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
         mime="text/plain",
         use_container_width=True,
     )
@@ -435,8 +463,8 @@ def main():
         st.markdown(
             """
             <div style='text-align: center; padding: 20px;'>
-                <h1 style='color: #8e24aa; font-size: 3em; margin-bottom: 0;'>Content Generator Bot</h1>
-                <p style='color: #666; font-size: 1.2em;'>Craft long-form content that speaks to your audience.</p>
+                <h1 style='color: #43a047; font-size: 3em; margin-bottom: 0;'>Smart Shopping List Creator</h1>
+                <p style='color: #666; font-size: 1.2em;'>Organized lists for any shopping need - from groceries to travel essentials</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -444,11 +472,11 @@ def main():
 
         st.markdown(
             """
-            <div style='background: linear-gradient(135deg, #8e24aa 0%, #ce93d8 100%);
+            <div style='background: linear-gradient(135deg, #43a047 0%, #81c784 100%);
             padding: 20px; border-radius: 15px; color: white; text-align: center; margin-bottom: 30px;'>
                 <p style='margin: 0; font-size: 1.1em;'>
-                    <strong>Create once, repurpose everywhere.</strong><br/>
-                    Outline your topic, audience, and tone, then iterate on sections, hooks, or CTAs.
+                    <strong>Shop smarter, save time.</strong><br/>
+                    Create organized, categorized shopping lists for groceries, household items, travel, events, and more.
                 </p>
             </div>
             """,
@@ -460,7 +488,7 @@ def main():
         with st.form("chat_form", clear_on_submit=True):
             user_input = st.text_area(
                 "Message",
-                placeholder="Example: Topic, audience, key takeaways, desired tone...",
+                placeholder="Describe what you need to shop for: groceries, household items, travel packing, party supplies, etc...",
                 key=f"user_input_{st.session_state.input_key}",
                 label_visibility="collapsed",
                 height=140,
@@ -478,8 +506,8 @@ def main():
                 }
             )
 
-            with st.spinner("Content Bot is drafting..."):
-                reply = get_content_response(user_input.strip())
+            with st.spinner("Shopping Bot is organizing your list..."):
+                reply = get_shopping_list(user_input.strip())
 
             st.session_state.history.append(
                 {

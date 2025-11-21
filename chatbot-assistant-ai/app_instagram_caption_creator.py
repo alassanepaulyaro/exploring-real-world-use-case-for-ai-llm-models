@@ -1,5 +1,5 @@
+# Instagram Caption Creator
 """
-Instagram Caption Creator - Streamlit Implementation
 Crafts catchy caption sets based on photo descriptions, vibes, or campaigns.
 """
 

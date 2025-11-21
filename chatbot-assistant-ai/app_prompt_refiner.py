@@ -1,6 +1,6 @@
-# Content Generator Bot
+# Prompt Refiner Bot
 """
-Produces blog posts and long-form content tailored to topic, audience, and tone.
+Helps transform rough prompts into concise, detailed instructions for LLMs.
 """
 
 import os
@@ -26,7 +26,7 @@ load_dotenv()
 # ============================
 
 st.set_page_config(
-    page_title="Content Generator Bot",
+    page_title="Prompt Refiner Bot",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -77,8 +77,8 @@ def initialize_session_state():
     if "show_timestamps" not in st.session_state:
         st.session_state.show_timestamps = False
 
-    if "content_mode" not in st.session_state:
-        st.session_state.content_mode = "Thought Leadership"
+    if "refine_mode" not in st.session_state:
+        st.session_state.refine_mode = "Clarify"
 
 
 initialize_session_state()
@@ -124,7 +124,7 @@ def call_openai(messages: List[Dict], model: str) -> str:
         content = response.choices[0].message.content.strip() if response.choices else ""
 
         if not content:
-            return "I could not draft that content yet - mind adding more detail?"
+            return "I could not refine that yet - share more context."
 
         return clean_html_tags(content)
 
@@ -137,30 +137,30 @@ def call_openai(messages: List[Dict], model: str) -> str:
 # ============================
 
 
-def get_content_response(user_input: str) -> str:
-    """Route conversation through the selected AI model"""
-    content_modes = {
-        "Thought Leadership": (
-            "You are a senior content strategist writing thought leadership posts. "
-            "Deliver a compelling introduction, 2-3 sections with evidence, and a visionary close. Use markdown."
+def get_refined_prompt(user_input: str) -> str:
+    """Route conversation through selected AI model"""
+    refine_modes = {
+        "Clarify": (
+            "You are a precision prompt engineer. Rewrite user prompts to be clear, "
+            "specific, and unambiguous. Add missing context, define outputs, and keep the tone consistent."
         ),
-        "How-To Guide": (
-            "You craft actionable step-by-step guides. "
-            "Include numbered steps, pro tips, and a call-to-action. Use markdown."
+        "Expand": (
+            "You expand prompts with detailed instructions, success criteria, and examples. "
+            "Encourage structured outputs."
         ),
-        "Product Spotlight": (
-            "You highlight products or features. "
-            "Explain benefits, use cases, and social proof in a persuasive tone. Use markdown."
+        "Shorten": (
+            "You condense prompts to their essentials while maintaining intent. "
+            "Remove fluff, keep directives crisp."
         ),
-        "Narrative Story": (
-            "You write storytelling style posts with vivid imagery and emotional arc. "
-            "Use anecdotes, quotes, and reflective takeaways. Use markdown."
+        "Persona Booster": (
+            "You infuse prompts with roles, expertise levels, and perspective statements. "
+            "Ensure the persona guides the response quality."
         ),
     }
 
     system_message = {
         "role": "system",
-        "content": content_modes.get(st.session_state.content_mode, content_modes["Thought Leadership"]),
+        "content": refine_modes.get(st.session_state.refine_mode, refine_modes["Clarify"]),
     }
 
     messages = [system_message]
@@ -190,20 +190,20 @@ def get_theme_colors():
     """Return theme-specific color schemes"""
     themes = {
         "default": {
-            "user_bg": "#f3e5f5",
+            "user_bg": "#e3f2fd",
             "bot_bg": "#f5f5f5",
-            "gradient_start": "#8e24aa",
-            "gradient_end": "#ce93d8",
+            "gradient_start": "#0288d1",
+            "gradient_end": "#4fc3f7",
         },
-        "teal": {
-            "user_bg": "#e0f7fa",
-            "bot_bg": "#f1fbff",
-            "gradient_start": "#00838f",
-            "gradient_end": "#26c6da",
+        "midnight": {
+            "user_bg": "#1b1f3a",
+            "bot_bg": "#2b3050",
+            "gradient_start": "#283593",
+            "gradient_end": "#5c6bc0",
         },
-        "sunset": {
-            "user_bg": "#fff3e0",
-            "bot_bg": "#fff8e1",
+        "sunrise": {
+            "user_bg": "#fff8e1",
+            "bot_bg": "#fffde7",
             "gradient_start": "#fb8c00",
             "gradient_end": "#ffd54f",
         },
@@ -218,9 +218,9 @@ def get_theme_colors():
 
 
 def display_chat_history():
-    """Display chat history with modern UI"""
+    """Display chat history"""
     if not st.session_state.history:
-        st.info("Share your topic, audience, hook, and desired tone to generate long-form posts.")
+        st.info("Paste any prompt and specify gaps, tone, or output format to get a refined version.")
         return
 
     for msg in st.session_state.history:
@@ -238,24 +238,24 @@ def display_chat_history():
                 st.write(msg["content"])
         elif msg["role"] == "assistant":
             with st.chat_message("assistant"):
-                st.markdown(f"**Content Bot{timestamp_display}**")
+                st.markdown(f"**Prompt Bot{timestamp_display}**")
                 st.write(msg["content"])
 
 
 def render_sidebar():
     """Render sidebar with settings"""
     with st.sidebar:
-        st.title("Content Settings")
+        st.title("Prompt Settings")
 
         st.divider()
 
-        st.subheader("Format Mode")
-        content_modes = ["Thought Leadership", "How-To Guide", "Product Spotlight", "Narrative Story"]
-        st.session_state.content_mode = st.selectbox(
+        st.subheader("Refinement Mode")
+        refine_modes = ["Clarify", "Expand", "Shorten", "Persona Booster"]
+        st.session_state.refine_mode = st.selectbox(
             "Mode",
-            options=content_modes,
-            index=content_modes.index(st.session_state.content_mode),
-            help="Select the type of post you want.",
+            options=refine_modes,
+            index=refine_modes.index(st.session_state.refine_mode),
+            help="Choose how the assistant should transform your prompt.",
         )
 
         st.divider()
@@ -324,7 +324,7 @@ def render_sidebar():
         st.divider()
 
         st.subheader("Appearance")
-        theme_options = ["default", "teal", "sunset", "slate"]
+        theme_options = ["default", "midnight", "sunrise", "slate"]
         st.session_state.theme = st.selectbox(
             "Theme",
             options=theme_options,
@@ -342,16 +342,16 @@ def render_sidebar():
         st.subheader("Quick Actions")
         if st.button("Sample Prompt", use_container_width=True):
             sample_prompts = {
-                "Thought Leadership": "Write about why responsible AI governance needs founders and policymakers in the same room.",
-                "How-To Guide": "Guide product marketers on repurposing webinars into newsletters.",
-                "Product Spotlight": "Introduce a new productivity app for remote teams, highlight differentiators.",
-                "Narrative Story": "Tell the story of a freelancer discovering their niche after burnout.",
+                "Clarify": "Write a prompt asking for a detailed customer journey map.",
+                "Expand": "Need a research assistant prompt for summarizing climate reports.",
+                "Shorten": "Simplify a prompt for generating SQL queries for analytics dashboards.",
+                "Persona Booster": "Create a prompt instructing an empathetic therapist chatbot.",
             }
-            prompt = sample_prompts.get(st.session_state.content_mode, sample_prompts["Thought Leadership"])
+            prompt = sample_prompts.get(st.session_state.refine_mode, sample_prompts["Clarify"])
             st.session_state.history.append(
                 {
                     "role": "assistant",
-                    "content": f"Try prompting with:\n\n{prompt}",
+                    "content": f"Example request:\n\n{prompt}",
                     "timestamp": datetime.now().isoformat(),
                 }
             )
@@ -375,22 +375,22 @@ def render_sidebar():
 
         if st.session_state.history:
             st.divider()
-            st.subheader("Content Stats")
+            st.subheader("Prompt Stats")
 
             total_messages = len(st.session_state.history)
             user_messages = len([m for m in st.session_state.history if m["role"] == "user"])
             bot_messages = total_messages - user_messages
 
             col1, col2 = st.columns(2)
-            col1.metric("Your briefs", user_messages)
-            col2.metric("Drafts generated", bot_messages)
+            col1.metric("Prompts submitted", user_messages)
+            col2.metric("Refinements produced", bot_messages)
 
         st.divider()
 
-        st.subheader("Writing Tips")
+        st.subheader("Refinement Tips")
         st.info(
-            "Mention target audience, key points, voice, and word count to keep the draft on-brand. "
-            "Ask for outlines or intro variations if you need options."
+            "Mention target model, length, tone, success metrics, or data source to shape better prompts. "
+            "Ask for bullet breakdowns to understand changes."
         )
 
 
@@ -400,21 +400,21 @@ def export_chat():
         st.error("No conversation to export")
         return
 
-    export_text = "Content Generator Session Export\n"
+    export_text = "Prompt Refiner Session Export\n"
     export_text += f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-    export_text += f"Mode: {st.session_state.content_mode}\n"
+    export_text += f"Mode: {st.session_state.refine_mode}\n"
     export_text += f"Model: {st.session_state.selected_model}\n"
     export_text += "=" * 50 + "\n\n"
 
     for msg in st.session_state.history:
-        role = "You" if msg["role"] == "user" else "Content Bot"
+        role = "You" if msg["role"] == "user" else "Prompt Bot"
         timestamp = msg.get("timestamp", "")
         export_text += f"[{timestamp}] {role}:\n{msg['content']}\n\n"
 
     st.sidebar.download_button(
         label="Download Session",
         data=export_text,
-        file_name=f"content_generator_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+        file_name=f"prompt_refiner_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
         mime="text/plain",
         use_container_width=True,
     )
@@ -435,8 +435,8 @@ def main():
         st.markdown(
             """
             <div style='text-align: center; padding: 20px;'>
-                <h1 style='color: #8e24aa; font-size: 3em; margin-bottom: 0;'>Content Generator Bot</h1>
-                <p style='color: #666; font-size: 1.2em;'>Craft long-form content that speaks to your audience.</p>
+                <h1 style='color: #0288d1; font-size: 3em; margin-bottom: 0;'>Prompt Refiner Bot</h1>
+                <p style='color: #666; font-size: 1.2em;'>Upgrade vague ideas into focussed, high-performing prompts.</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -444,11 +444,11 @@ def main():
 
         st.markdown(
             """
-            <div style='background: linear-gradient(135deg, #8e24aa 0%, #ce93d8 100%);
+            <div style='background: linear-gradient(135deg, #0288d1 0%, #4fc3f7 100%);
             padding: 20px; border-radius: 15px; color: white; text-align: center; margin-bottom: 30px;'>
                 <p style='margin: 0; font-size: 1.1em;'>
-                    <strong>Create once, repurpose everywhere.</strong><br/>
-                    Outline your topic, audience, and tone, then iterate on sections, hooks, or CTAs.
+                    <strong>Engineer smarter prompts.</strong><br/>
+                    Share your draft, specify what is missing, and iterate until you're satisfied.
                 </p>
             </div>
             """,
@@ -460,7 +460,7 @@ def main():
         with st.form("chat_form", clear_on_submit=True):
             user_input = st.text_area(
                 "Message",
-                placeholder="Example: Topic, audience, key takeaways, desired tone...",
+                placeholder="Paste your original prompt or idea here...",
                 key=f"user_input_{st.session_state.input_key}",
                 label_visibility="collapsed",
                 height=140,
@@ -478,8 +478,8 @@ def main():
                 }
             )
 
-            with st.spinner("Content Bot is drafting..."):
-                reply = get_content_response(user_input.strip())
+            with st.spinner("Prompt Bot is refining..."):
+                reply = get_refined_prompt(user_input.strip())
 
             st.session_state.history.append(
                 {
