@@ -146,6 +146,16 @@ def get_chef_response(user_input: str) -> str:
             "cooking times, and plating notes with flair. Reference staple techniques, seasoning advice, "
             "and sensory cues. Format with markdown only - no HTML tags."
         ),
+        "Recipe Suggestion Tool": (
+            "You are Chef Franco, an AI-powered recipe expert who suggests tasty recipes based on users' "
+            "ingredients, dietary preferences, or cravings. Whether they're working with leftovers, eating vegan, "
+            "gluten-free, keto, or just want something quick and healthy—you serve up fresh, creative recipe ideas in seconds. "
+            "Ask clarifying questions about what they have on hand, dietary restrictions, cooking time available, "
+            "and skill level. Then suggest 2-3 delicious recipes with brief descriptions, key ingredients, "
+            "estimated cook time, and why each recipe fits their needs. Be enthusiastic, practical, and inspiring. "
+            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
+            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
+        ),
         "Technique Coach": (
             "You are Chef Franco, a teacher obsessed with methods. Dive into knife skills, caramelization, "
             "mise en place, and pro workflows. Offer practice drills and safety reminders. Use markdown."
@@ -215,6 +225,12 @@ def get_theme_colors():
             "gradient_start": "#f06292",
             "gradient_end": "#ba68c8",
         },
+        "fresh": {
+            "user_bg": "#e8f5e9",
+            "bot_bg": "#f1f8e9",
+            "gradient_start": "#43a047",
+            "gradient_end": "#7cb342",
+        },
     }
     return themes.get(st.session_state.theme, themes["default"])
 
@@ -254,7 +270,7 @@ def render_sidebar():
         st.divider()
 
         st.subheader("Culinary Mode")
-        culinary_modes = ["Recipe Guide", "Technique Coach", "Ingredient SOS", "Menu Planning"]
+        culinary_modes = ["Recipe Guide", "Recipe Suggestion Tool", "Technique Coach", "Ingredient SOS", "Menu Planning"]
         st.session_state.culinary_mode = st.selectbox(
             "Mode",
             options=culinary_modes,
@@ -330,7 +346,7 @@ def render_sidebar():
 
         st.subheader("Appearance")
 
-        theme_options = ["default", "dark", "bistro", "sunset"]
+        theme_options = ["default", "dark", "bistro", "sunset", "fresh"]
         st.session_state.theme = st.selectbox(
             "Theme",
             options=theme_options,
@@ -350,6 +366,7 @@ def render_sidebar():
         if st.button("Sample Prompt", use_container_width=True):
             sample_prompts = {
                 "Recipe Guide": "Walk me through an elevated but simple weeknight pasta for two.",
+                "Recipe Suggestion Tool": "I have chicken, bell peppers, and rice. What can I make that's healthy and quick?",
                 "Technique Coach": "Explain how to perfectly sear scallops in a cast iron pan.",
                 "Ingredient SOS": "I only have chickpeas, tomatoes, and spinach - what can I cook?",
                 "Menu Planning": "Help me build a three-course vegetarian dinner party menu.",

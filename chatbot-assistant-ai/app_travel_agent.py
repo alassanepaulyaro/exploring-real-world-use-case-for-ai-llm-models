@@ -145,22 +145,41 @@ def get_travel_response(user_input: str) -> str:
         "Destination Ideas": (
             "You are a knowledgeable and friendly virtual travel agent. "
             "Help users discover new destinations based on their interests, budget, and travel style. "
-            "Ask clarifying questions to provide personalized recommendations."
+            "Ask clarifying questions to provide personalized recommendations. "
+            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
+            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
+        ),
+        "Travel Destination Recommender": (
+            "You are a travel-savvy AI destination expert with a flair of wanderlust. "
+            "Your specialty is recommending destinations based on users' interests, season, budget, or travel style. "
+            "Whether they're into adventure, culture, beaches, food, relaxation, or unique experiences—you curate "
+            "personalized trip ideas that inspire and excite. Ask thoughtful questions about their preferences, "
+            "then suggest 2-3 destinations with compelling reasons why each one fits their criteria. "
+            "Include insider tips, best times to visit, and what makes each destination special. "
+            "Be enthusiastic, descriptive, and paint a vivid picture of each location. "
+            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
+            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
         ),
         "Itinerary Planning": (
             "You are an expert travel planner. Help users create detailed itineraries. "
             "Ask for the destination, duration, and interests. Suggest a day-by-day plan including "
-            "flights, accommodations, activities, and dining options."
+            "flights, accommodations, activities, and dining options. "
+            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
+            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
         ),
         "Budget Travel": (
             "You are a budget travel expert. Provide tips and advice for traveling on a budget. "
             "Suggest affordable destinations, cheap transportation, and free activities. "
-            "Help users create a travel plan that maximizes their experience without breaking the bank."
+            "Help users create a travel plan that maximizes their experience without breaking the bank. "
+            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
+            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
         ),
         "Activity Suggestions": (
             "You are a local guide. Given a destination, provide a list of top attractions, "
             "hidden gems, and unique experiences. Tailor your suggestions to the user's "
-            "interests, such as adventure, relaxation, culture, or food."
+            "interests, such as adventure, relaxation, culture, or food. "
+            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
+            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
         ),
     }
 
@@ -216,6 +235,12 @@ def get_theme_colors():
             "gradient_start": "#f9a826",
             "gradient_end": "#fdd365",
         },
+        "wanderlust": {
+            "user_bg": "#e8f5e9",
+            "bot_bg": "#fafafa",
+            "gradient_start": "#00897b",
+            "gradient_end": "#4db6ac",
+        },
     }
     return themes.get(st.session_state.theme, themes["default"])
 
@@ -253,7 +278,7 @@ def render_sidebar():
         # Travel Mode Selection
         st.subheader("Planner Mode")
 
-        travel_modes = ["Destination Ideas", "Itinerary Planning", "Budget Travel", "Activity Suggestions"]
+        travel_modes = ["Destination Ideas", "Travel Destination Recommender", "Itinerary Planning", "Budget Travel", "Activity Suggestions"]
         st.session_state.travel_mode = st.selectbox(
             "Mode",
             options=travel_modes,
@@ -331,7 +356,7 @@ def render_sidebar():
         # UI Customization
         st.subheader("Appearance")
 
-        theme_options = ["default", "dark", "beach"]
+        theme_options = ["default", "dark", "beach", "wanderlust"]
         st.session_state.theme = st.selectbox(
             "Theme",
             options=theme_options,
@@ -352,6 +377,7 @@ def render_sidebar():
         if st.button("Sample Prompt", use_container_width=True):
             sample_prompts = {
                 "Destination Ideas": "Suggest a 2-week honeymoon destination in Southeast Asia for December.",
+                "Travel Destination Recommender": "I love beaches and food. Where should I travel in the summer on a medium budget?",
                 "Itinerary Planning": "Create a 7-day family-friendly itinerary for Orlando, Florida.",
                 "Budget Travel": "How can I travel through Italy for 10 days on a $1500 budget?",
                 "Activity Suggestions": "What are the must-see attractions in Paris for a first-time visitor?",
