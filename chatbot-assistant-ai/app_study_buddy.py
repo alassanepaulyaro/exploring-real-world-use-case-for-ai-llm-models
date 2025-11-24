@@ -1,7 +1,8 @@
+# Study Buddy Bot
 """
-AI Resume Builder - Conversational Assistant
-An interactive AI assistant that helps users build professional, ATS-optimized resumes
-through conversational dialogue and provides formatting guidance.
+This bot acts as a friendly study partner. It can quiz you on topics, explain concepts in
+simple terms, or help summarize your notes. It’s great for students who want a quick,
+interactive way to review material or learn new topics on the fly
 """
 
 import os
@@ -27,13 +28,11 @@ load_dotenv()
 # ============================
 
 st.set_page_config(
-    page_title="AI Resume Builder",
-    page_icon="📄",
+    page_title="Study Buddy Bot",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# Model configurations
 OLLAMA_MODELS = {
     "gpt-oss:120b-cloud": {"name": "GPT-OSS 120B (Cloud)", "provider": "ollama_cloud"},
     "gpt-oss:20b-cloud": {"name": "GPT-OSS 20B (Cloud)", "provider": "ollama_cloud"},
@@ -79,8 +78,8 @@ def initialize_session_state():
     if "show_timestamps" not in st.session_state:
         st.session_state.show_timestamps = False
 
-    if "resume_mode" not in st.session_state:
-        st.session_state.resume_mode = "Professional"
+    if "study_mode" not in st.session_state:
+        st.session_state.study_mode = "Explain"
 
 initialize_session_state()
 
@@ -91,6 +90,7 @@ initialize_session_state()
 
 def clean_html_tags(text: str) -> str:
     """Remove all HTML tags from text"""
+    # Remove all HTML tags including <br>, <b>, <i>, <p>, <div>, etc.
     cleaned = re.sub(r'<[^>]+>', '', text)
     return cleaned
 
@@ -125,7 +125,7 @@ def call_openai(messages: List[Dict], model: str) -> str:
         content = response.choices[0].message.content.strip() if response.choices else ""
 
         if not content:
-            return "I'm having trouble generating that section. Could you provide more details?"
+            return "I couldn't generate a helpful response right now. Could you rephrase that?"
 
         return clean_html_tags(content)
 
@@ -137,71 +137,32 @@ def call_openai(messages: List[Dict], model: str) -> str:
 # Main Chat Function
 # ============================
 
-def get_resume_response(user_input: str) -> str:
+def get_study_response(user_input: str) -> str:
     """
-    Get resume building assistance from selected AI model
+    Get study buddy response from selected AI model
     """
-    resume_modes = {
-        "Professional": (
-            "You are an expert resume writer and career coach. Help users build professional, "
-            "ATS-optimized resumes through conversational guidance. Ask clarifying questions about their "
-            "experience, skills, education, and career goals. Provide specific advice on how to phrase "
-            "accomplishments using action verbs and quantifiable metrics. Suggest improvements to make "
-            "their resume more impactful and industry-appropriate. When they provide information, help "
-            "them craft compelling bullet points and sections. Be encouraging and constructive. "
+    study_modes = {
+        "Explain": (
+            "You are a patient study buddy. Explain complex topics in clear steps, "
+            "offer analogies, and highlight key takeaways. Encourage follow-up questions. "
             "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
             "Use markdown syntax instead (line breaks, **bold**, *italic*)."
         ),
-        "Resume Enhancer": (
-            "You are a professional resume enhancement specialist who transforms plain or basic resume bullet points "
-            "into powerful, impactful statements that make job seekers stand out. Your expertise lies in rewriting "
-            "resume content to be more professional, action-driven, and achievement-oriented. When users provide "
-            "their existing bullet points or resume sections, you rewrite them using: strong action verbs, "
-            "quantifiable achievements (metrics, percentages, numbers), industry-specific keywords for ATS optimization, "
-            "clear cause-and-effect relationships showing impact, and professional language that highlights value. "
-            "You also identify weak phrases like 'responsible for' or 'helped with' and transform them into powerful "
-            "statements that demonstrate concrete accomplishments. Ask clarifying questions about scope, impact, "
-            "or metrics if the original content lacks specificity. Then provide multiple enhanced versions with "
-            "explanations of what makes each version stronger. Be enthusiastic about helping job seekers level up "
-            "their resume game and stand out in competitive job markets. "
+        "Quiz": (
+            "You are a friendly quiz master. Ask short quizzes, wait for answers, "
+            "and provide detailed corrections and study tips after each response. "
             "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
             "Use markdown syntax instead (line breaks, **bold**, *italic*)."
         ),
-        "Technical": (
-            "You are an expert technical resume writer specializing in engineering and tech roles. "
-            "Help users create resumes that highlight technical skills, projects, certifications, and "
-            "quantifiable achievements. Focus on programming languages, frameworks, tools, system design, "
-            "and technical methodologies. Guide them to use industry-standard keywords for ATS optimization. "
-            "Ask about their tech stack, project impact, and technical leadership experience. Provide examples "
-            "of strong technical bullet points with metrics and concrete results. "
+        "Summarize": (
+            "You are a concise summarizer. Turn user-provided notes or text into structured summaries, "
+            "highlighting definitions, formulas, and next steps for review. "
             "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
             "Use markdown syntax instead (line breaks, **bold**, *italic*)."
         ),
-        "Creative": (
-            "You are an expert resume writer for creative professionals in design, marketing, and media. "
-            "Help users showcase their creative work, campaigns, portfolios, and innovative projects. "
-            "Focus on impact metrics, audience reach, brand development, and artistic achievements. "
-            "Guide them to balance creativity with professionalism and ATS-friendliness. Ask about their "
-            "creative process, tools, and measurable results. Emphasize visual and conceptual accomplishments. "
-            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
-            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
-        ),
-        "Executive": (
-            "You are an executive resume writer specializing in senior leadership roles. Help users "
-            "create strategic, results-driven resumes that highlight leadership experience, strategic vision, "
-            "P&L responsibility, organizational transformation, and business impact. Focus on high-level "
-            "accomplishments, team leadership, revenue growth, operational excellence, and executive presence. "
-            "Ask about their leadership philosophy, team size, budget responsibility, and strategic initiatives. "
-            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
-            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
-        ),
-        "Entry-Level": (
-            "You are a resume writer specializing in entry-level and early-career professionals. "
-            "Help users create strong resumes even with limited work experience by emphasizing education, "
-            "internships, projects, relevant coursework, volunteer work, and transferable skills. Guide them "
-            "to showcase potential, enthusiasm, and quick learning ability. Ask about academic achievements, "
-            "extracurriculars, personal projects, and any work experience. Help them frame experiences "
-            "professionally and identify transferable skills. "
+        "Coach": (
+            "You are an academic coach helping students build effective study plans. "
+            "Suggest strategies, time-boxed plans, and encouragement tailored to the user's workload. "
             "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
             "Use markdown syntax instead (line breaks, **bold**, *italic*)."
         ),
@@ -209,7 +170,7 @@ def get_resume_response(user_input: str) -> str:
 
     system_message = {
         "role": "system",
-        "content": resume_modes.get(st.session_state.resume_mode, resume_modes["Professional"]),
+        "content": study_modes.get(st.session_state.study_mode, study_modes["Explain"]),
     }
 
     messages = [system_message]
@@ -244,32 +205,26 @@ def get_theme_colors():
         "default": {
             "user_bg": "#e3f2fd",
             "bot_bg": "#f5f5f5",
-            "gradient_start": "#2196f3",
-            "gradient_end": "#64b5f6",
+            "gradient_start": "#1976d2",
+            "gradient_end": "#42a5f5",
         },
         "dark": {
-            "user_bg": "#263238",
-            "bot_bg": "#37474f",
-            "gradient_start": "#1565c0",
-            "gradient_end": "#1976d2",
+            "user_bg": "#132743",
+            "bot_bg": "#1f4068",
+            "gradient_start": "#16213e",
+            "gradient_end": "#0f3460",
         },
-        "professional": {
-            "user_bg": "#e8eaf6",
-            "bot_bg": "#fafafa",
-            "gradient_start": "#3f51b5",
-            "gradient_end": "#5c6bc0",
-        },
-        "modern": {
-            "user_bg": "#e0f2f1",
-            "bot_bg": "#fafafa",
-            "gradient_start": "#00897b",
-            "gradient_end": "#26a69a",
-        },
-        "enhancer": {
+        "notebook": {
             "user_bg": "#fff3e0",
             "bot_bg": "#fafafa",
-            "gradient_start": "#ff6f00",
-            "gradient_end": "#ffa726",
+            "gradient_start": "#f9a826",
+            "gradient_end": "#fdd365",
+        },
+        "forest": {
+            "user_bg": "#e8f5e9",
+            "bot_bg": "#f1f8e9",
+            "gradient_start": "#2e7d32",
+            "gradient_end": "#66bb6a",
         },
     }
     return themes.get(st.session_state.theme, themes["default"])
@@ -278,7 +233,7 @@ def get_theme_colors():
 def display_chat_history():
     """Display chat history with modern UI"""
     if not st.session_state.history:
-        st.info("👋 Hi! I'm your AI Resume Builder. Let's create an amazing resume together! Tell me about your target role, experience, skills, or ask for guidance.")
+        st.info("Start learning! Ask for an explanation, a quiz, or a summary of your notes.")
         return
 
     for msg in st.session_state.history:
@@ -296,7 +251,7 @@ def display_chat_history():
                 st.write(msg["content"])
         elif msg["role"] == "assistant":
             with st.chat_message("assistant"):
-                st.markdown(f"**Resume Builder{timestamp_display}**")
+                st.markdown(f"**Study Buddy{timestamp_display}**")
                 st.write(msg["content"])
 
 
@@ -307,15 +262,15 @@ def render_sidebar():
 
         st.divider()
 
-        # Resume Mode Selection
-        st.subheader("Resume Style")
+        # Study Mode Selection
+        st.subheader("Study Mode")
 
-        resume_modes = ["Professional", "Resume Enhancer", "Technical", "Creative", "Executive", "Entry-Level"]
-        st.session_state.resume_mode = st.selectbox(
+        study_modes = ["Explain", "Quiz", "Summarize", "Coach"]
+        st.session_state.study_mode = st.selectbox(
             "Mode",
-            options=resume_modes,
-            index=resume_modes.index(st.session_state.resume_mode),
-            help="Choose your resume specialization",
+            options=study_modes,
+            index=study_modes.index(st.session_state.study_mode),
+            help="Choose the type of help you want",
         )
 
         st.divider()
@@ -388,7 +343,7 @@ def render_sidebar():
         # UI Customization
         st.subheader("Appearance")
 
-        theme_options = ["default", "dark", "professional", "modern", "enhancer"]
+        theme_options = ["default", "dark", "notebook", "forest"]
         st.session_state.theme = st.selectbox(
             "Theme",
             options=theme_options,
@@ -406,19 +361,17 @@ def render_sidebar():
         # Quick Actions
         st.subheader("Quick Actions")
 
-        if st.button("Sample Question", use_container_width=True):
+        if st.button("Sample Prompt", use_container_width=True):
             sample_prompts = {
-                "Professional": "I'm applying for a Project Manager role. Help me write a strong professional summary.",
-                "Resume Enhancer": "Can you enhance this bullet point: 'Responsible for managing customer accounts and handling support tickets.'",
-                "Technical": "I'm a software engineer with 5 years of experience in Python and cloud technologies. How should I structure my technical skills section?",
-                "Creative": "I'm a graphic designer. How can I showcase my design projects effectively on my resume?",
-                "Executive": "I'm a VP of Operations. How do I highlight my strategic leadership and P&L responsibility?",
-                "Entry-Level": "I'm a recent graduate looking for my first job. How do I make my resume stand out with limited experience?",
+                "Explain": "Explain photosynthesis like I'm in middle school.",
+                "Quiz": "Quiz me on the causes of World War I.",
+                "Summarize": "Summarize the notes I paste here about the Krebs cycle.",
+                "Coach": "Help me plan a study schedule for finals week.",
             }
-            prompt = sample_prompts.get(st.session_state.resume_mode, sample_prompts["Professional"])
+            prompt = sample_prompts.get(st.session_state.study_mode, sample_prompts["Explain"])
             st.session_state.history.append({
                 "role": "assistant",
-                "content": f"Here's a sample question to get started:\n\n{prompt}\n\nFeel free to share your own details, and I'll help you craft a great resume!",
+                "content": f"Try asking something like:\n\n{prompt}\n\nI'm ready whenever you are!",
                 "timestamp": datetime.now().isoformat(),
             })
             st.rerun()
@@ -450,19 +403,17 @@ def render_sidebar():
             bot_messages = total_messages - user_messages
 
             col1, col2 = st.columns(2)
-            col1.metric("Your inputs", user_messages)
-            col2.metric("AI responses", bot_messages)
+            col1.metric("Your questions", user_messages)
+            col2.metric("Buddy replies", bot_messages)
 
         st.divider()
 
-        # Resume Tips
-        st.subheader("Resume Tips")
+        # Tips
+        st.subheader("Study Tips")
         st.info(
-            "**ATS Optimization:**\n"
-            "- Use standard section headers\n"
-            "- Include relevant keywords\n"
-            "- Use bullet points with metrics\n"
-            "- Keep formatting simple and clean"
+            "**Active Recall:**\n"
+            "- Ask for a quiz, answer from memory, then review the explanation.\n"
+            "- Repeat difficult questions until you're confident."
         )
 
 
@@ -472,21 +423,21 @@ def export_chat():
         st.error("No conversation to export")
         return
 
-    export_text = "AI Resume Builder Session Export\n"
+    export_text = "Study Buddy Session Export\n"
     export_text += f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-    export_text += f"Mode: {st.session_state.resume_mode}\n"
+    export_text += f"Mode: {st.session_state.study_mode}\n"
     export_text += f"Model: {st.session_state.selected_model}\n"
     export_text += "=" * 50 + "\n\n"
 
     for msg in st.session_state.history:
-        role = "You" if msg["role"] == "user" else "Resume Builder"
+        role = "You" if msg["role"] == "user" else "Study Buddy"
         timestamp = msg.get("timestamp", "")
         export_text += f"[{timestamp}] {role}:\n{msg['content']}\n\n"
 
     st.sidebar.download_button(
         label="Download Session",
         data=export_text,
-        file_name=f"resume_builder_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+        file_name=f"study_buddy_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
         mime="text/plain",
         use_container_width=True,
     )
@@ -507,8 +458,8 @@ def main():
         st.markdown(
             """
             <div style='text-align: center; padding: 20px;'>
-                <h1 style='color: #2196f3; font-size: 3em; margin-bottom: 0;'>📄 AI Resume Builder</h1>
-                <p style='color: #666; font-size: 1.2em;'>Build professional, ATS-optimized resumes with AI assistance</p>
+                <h1 style='color: #1976d2; font-size: 3em; margin-bottom: 0;'>Study Buddy Bot</h1>
+                <p style='color: #666; font-size: 1.2em;'>Your personalized learning partner for explanations, quizzes, and study plans.</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -516,11 +467,11 @@ def main():
 
         st.markdown(
             """
-            <div style='background: linear-gradient(135deg, #2196f3 0%, #64b5f6 100%);
+            <div style='background: linear-gradient(135deg, #1976d2 0%, #42a5f5 100%);
             padding: 20px; border-radius: 15px; color: white; text-align: center; margin-bottom: 30px;'>
                 <p style='margin: 0; font-size: 1.1em;'>
-                    <strong>Create a standout resume!</strong><br/>
-                    Get expert guidance on structuring, writing, and optimizing your resume for any role.
+                    <strong>Learn smarter every session.</strong><br/>
+                    Ask for explanations, quizzes, or structured summaries—and iterate on what matters most.
                 </p>
             </div>
             """,
@@ -532,7 +483,7 @@ def main():
         with st.form("chat_form", clear_on_submit=True):
             user_input = st.text_area(
                 "Message",
-                placeholder="Tell me about your experience, skills, or ask for resume advice...",
+                placeholder="Describe a concept, paste notes to summarize, or ask for a quiz...",
                 key=f"user_input_{st.session_state.input_key}",
                 label_visibility="collapsed",
                 height=100,
@@ -548,8 +499,8 @@ def main():
                 "timestamp": datetime.now().isoformat(),
             })
 
-            with st.spinner("Building your resume..."):
-                reply = get_resume_response(user_input.strip())
+            with st.spinner("Study Buddy is thinking..."):
+                reply = get_study_response(user_input.strip())
 
             st.session_state.history.append({
                 "role": "assistant",
@@ -586,7 +537,7 @@ def apply_custom_css():
         }}
         .stTextInput > div > div > input:focus {{
             border-color: {colors["gradient_start"]};
-            box-shadow: 0 0 15px rgba(33, 150, 243, 0.3);
+            box-shadow: 0 0 15px rgba(25, 118, 210, 0.3);
         }}
         .stTextArea > div > div > textarea {{
             border-radius: 15px;
@@ -598,7 +549,7 @@ def apply_custom_css():
         }}
         .stTextArea > div > div > textarea:focus {{
             border-color: {colors["gradient_start"]};
-            box-shadow: 0 0 15px rgba(33, 150, 243, 0.3);
+            box-shadow: 0 0 15px rgba(25, 118, 210, 0.3);
         }}
         .stButton > button, .stFormSubmitButton > button {{
             border-radius: 25px;
@@ -613,7 +564,7 @@ def apply_custom_css():
         .stButton > button:hover, .stFormSubmitButton > button:hover {{
             background: linear-gradient(90deg, {colors["gradient_end"]} 0%, {colors["gradient_start"]} 100%);
             transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(33, 150, 243, 0.4);
+            box-shadow: 0 5px 20px rgba(25, 118, 210, 0.4);
         }}
         .stSelectbox > div > div {{
             border-radius: 10px;

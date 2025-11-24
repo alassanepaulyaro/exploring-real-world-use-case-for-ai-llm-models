@@ -1,7 +1,8 @@
+# Career Advisor Bot
 """
-AI Resume Builder - Conversational Assistant
-An interactive AI assistant that helps users build professional, ATS-optimized resumes
-through conversational dialogue and provides formatting guidance.
+This chatbot acts like a friendly career coach. It offers personalized guidance based on your
+interests, suggests career paths, reviews resumes, and even gives job-hunting tips. Great for
+students, professionals in transition, or anyone exploring new opportunities
 """
 
 import os
@@ -27,8 +28,8 @@ load_dotenv()
 # ============================
 
 st.set_page_config(
-    page_title="AI Resume Builder",
-    page_icon="📄",
+    page_title="Career Advisor Bot",
+    page_icon="🎯",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -79,8 +80,8 @@ def initialize_session_state():
     if "show_timestamps" not in st.session_state:
         st.session_state.show_timestamps = False
 
-    if "resume_mode" not in st.session_state:
-        st.session_state.resume_mode = "Professional"
+    if "career_mode" not in st.session_state:
+        st.session_state.career_mode = "General Advice"
 
 initialize_session_state()
 
@@ -107,7 +108,6 @@ def call_ollama(messages: List[Dict], model: str) -> str:
     except Exception as e:
         return f"Ollama Error: {str(e)}"
 
-
 def call_openai(messages: List[Dict], model: str) -> str:
     """Call OpenAI API"""
     api_key = os.getenv("OPENAI_API_KEY")
@@ -125,7 +125,7 @@ def call_openai(messages: List[Dict], model: str) -> str:
         content = response.choices[0].message.content.strip() if response.choices else ""
 
         if not content:
-            return "I'm having trouble generating that section. Could you provide more details?"
+            return "I couldn't generate a helpful response right now. Could you rephrase that?"
 
         return clean_html_tags(content)
 
@@ -137,79 +137,36 @@ def call_openai(messages: List[Dict], model: str) -> str:
 # Main Chat Function
 # ============================
 
-def get_resume_response(user_input: str) -> str:
+def get_advisor_response(user_input: str) -> str:
     """
-    Get resume building assistance from selected AI model
+    Get career advisor response from selected AI model
     """
-    resume_modes = {
-        "Professional": (
-            "You are an expert resume writer and career coach. Help users build professional, "
-            "ATS-optimized resumes through conversational guidance. Ask clarifying questions about their "
-            "experience, skills, education, and career goals. Provide specific advice on how to phrase "
-            "accomplishments using action verbs and quantifiable metrics. Suggest improvements to make "
-            "their resume more impactful and industry-appropriate. When they provide information, help "
-            "them craft compelling bullet points and sections. Be encouraging and constructive. "
-            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
-            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
+    career_modes = {
+        "General Advice": (
+            "You are a professional career advisor. Help users explore career paths, "
+            "prepare for interviews, and set goals. Ask thoughtful follow-up questions. "
+            "Offer practical and motivational advice tailored to their background."
         ),
-        "Resume Enhancer": (
-            "You are a professional resume enhancement specialist who transforms plain or basic resume bullet points "
-            "into powerful, impactful statements that make job seekers stand out. Your expertise lies in rewriting "
-            "resume content to be more professional, action-driven, and achievement-oriented. When users provide "
-            "their existing bullet points or resume sections, you rewrite them using: strong action verbs, "
-            "quantifiable achievements (metrics, percentages, numbers), industry-specific keywords for ATS optimization, "
-            "clear cause-and-effect relationships showing impact, and professional language that highlights value. "
-            "You also identify weak phrases like 'responsible for' or 'helped with' and transform them into powerful "
-            "statements that demonstrate concrete accomplishments. Ask clarifying questions about scope, impact, "
-            "or metrics if the original content lacks specificity. Then provide multiple enhanced versions with "
-            "explanations of what makes each version stronger. Be enthusiastic about helping job seekers level up "
-            "their resume game and stand out in competitive job markets. "
-            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
-            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
+        "Resume Review": (
+            "You are an expert resume reviewer. Provide constructive feedback on a user's resume. "
+            "Analyze the content for clarity, impact, and formatting. Suggest specific improvements "
+            "to highlight skills and achievements effectively. Ask the user to paste their resume."
         ),
-        "Technical": (
-            "You are an expert technical resume writer specializing in engineering and tech roles. "
-            "Help users create resumes that highlight technical skills, projects, certifications, and "
-            "quantifiable achievements. Focus on programming languages, frameworks, tools, system design, "
-            "and technical methodologies. Guide them to use industry-standard keywords for ATS optimization. "
-            "Ask about their tech stack, project impact, and technical leadership experience. Provide examples "
-            "of strong technical bullet points with metrics and concrete results. "
-            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
-            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
+        "Interview Prep": (
+            "You are an interview coach. Help the user practice for job interviews. "
+            "Ask common behavioral or technical questions based on a job role, and provide "
+            "feedback on their answers. Help them structure responses using the STAR method."
         ),
-        "Creative": (
-            "You are an expert resume writer for creative professionals in design, marketing, and media. "
-            "Help users showcase their creative work, campaigns, portfolios, and innovative projects. "
-            "Focus on impact metrics, audience reach, brand development, and artistic achievements. "
-            "Guide them to balance creativity with professionalism and ATS-friendliness. Ask about their "
-            "creative process, tools, and measurable results. Emphasize visual and conceptual accomplishments. "
-            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
-            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
-        ),
-        "Executive": (
-            "You are an executive resume writer specializing in senior leadership roles. Help users "
-            "create strategic, results-driven resumes that highlight leadership experience, strategic vision, "
-            "P&L responsibility, organizational transformation, and business impact. Focus on high-level "
-            "accomplishments, team leadership, revenue growth, operational excellence, and executive presence. "
-            "Ask about their leadership philosophy, team size, budget responsibility, and strategic initiatives. "
-            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
-            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
-        ),
-        "Entry-Level": (
-            "You are a resume writer specializing in entry-level and early-career professionals. "
-            "Help users create strong resumes even with limited work experience by emphasizing education, "
-            "internships, projects, relevant coursework, volunteer work, and transferable skills. Guide them "
-            "to showcase potential, enthusiasm, and quick learning ability. Ask about academic achievements, "
-            "extracurriculars, personal projects, and any work experience. Help them frame experiences "
-            "professionally and identify transferable skills. "
-            "Format your responses using plain text with markdown. Never use HTML tags like <br>, <b>, <i>, etc. "
-            "Use markdown syntax instead (line breaks, **bold**, *italic*)."
+        "Job Search": (
+            "You are a job search strategist. Provide tips and resources for finding jobs. "
+            "Suggest platforms, networking strategies, and ways to tailor applications. "
+            "Help the user create a structured job search plan."
         ),
     }
 
     system_message = {
         "role": "system",
-        "content": resume_modes.get(st.session_state.resume_mode, resume_modes["Professional"]),
+        "content": career_modes.get(st.session_state.career_mode, career_modes["General Advice"]),
     }
 
     messages = [system_message]
@@ -244,32 +201,20 @@ def get_theme_colors():
         "default": {
             "user_bg": "#e3f2fd",
             "bot_bg": "#f5f5f5",
-            "gradient_start": "#2196f3",
-            "gradient_end": "#64b5f6",
+            "gradient_start": "#1976d2",
+            "gradient_end": "#42a5f5",
         },
         "dark": {
-            "user_bg": "#263238",
-            "bot_bg": "#37474f",
-            "gradient_start": "#1565c0",
-            "gradient_end": "#1976d2",
+            "user_bg": "#132743",
+            "bot_bg": "#1f4068",
+            "gradient_start": "#16213e",
+            "gradient_end": "#0f3460",
         },
         "professional": {
-            "user_bg": "#e8eaf6",
+            "user_bg": "#e8f5e9",
             "bot_bg": "#fafafa",
-            "gradient_start": "#3f51b5",
-            "gradient_end": "#5c6bc0",
-        },
-        "modern": {
-            "user_bg": "#e0f2f1",
-            "bot_bg": "#fafafa",
-            "gradient_start": "#00897b",
-            "gradient_end": "#26a69a",
-        },
-        "enhancer": {
-            "user_bg": "#fff3e0",
-            "bot_bg": "#fafafa",
-            "gradient_start": "#ff6f00",
-            "gradient_end": "#ffa726",
+            "gradient_start": "#388e3c",
+            "gradient_end": "#66bb6a",
         },
     }
     return themes.get(st.session_state.theme, themes["default"])
@@ -278,7 +223,7 @@ def get_theme_colors():
 def display_chat_history():
     """Display chat history with modern UI"""
     if not st.session_state.history:
-        st.info("👋 Hi! I'm your AI Resume Builder. Let's create an amazing resume together! Tell me about your target role, experience, skills, or ask for guidance.")
+        st.info("Start your career journey! Ask for advice, a resume review, or interview practice.")
         return
 
     for msg in st.session_state.history:
@@ -296,7 +241,7 @@ def display_chat_history():
                 st.write(msg["content"])
         elif msg["role"] == "assistant":
             with st.chat_message("assistant"):
-                st.markdown(f"**Resume Builder{timestamp_display}**")
+                st.markdown(f"**Career Advisor{timestamp_display}**")
                 st.write(msg["content"])
 
 
@@ -307,15 +252,15 @@ def render_sidebar():
 
         st.divider()
 
-        # Resume Mode Selection
-        st.subheader("Resume Style")
+        # Career Mode Selection
+        st.subheader("Advisor Mode")
 
-        resume_modes = ["Professional", "Resume Enhancer", "Technical", "Creative", "Executive", "Entry-Level"]
-        st.session_state.resume_mode = st.selectbox(
+        career_modes = ["General Advice", "Resume Review", "Interview Prep", "Job Search"]
+        st.session_state.career_mode = st.selectbox(
             "Mode",
-            options=resume_modes,
-            index=resume_modes.index(st.session_state.resume_mode),
-            help="Choose your resume specialization",
+            options=career_modes,
+            index=career_modes.index(st.session_state.career_mode),
+            help="Choose the type of career help you want",
         )
 
         st.divider()
@@ -388,7 +333,7 @@ def render_sidebar():
         # UI Customization
         st.subheader("Appearance")
 
-        theme_options = ["default", "dark", "professional", "modern", "enhancer"]
+        theme_options = ["default", "dark", "professional"]
         st.session_state.theme = st.selectbox(
             "Theme",
             options=theme_options,
@@ -406,19 +351,17 @@ def render_sidebar():
         # Quick Actions
         st.subheader("Quick Actions")
 
-        if st.button("Sample Question", use_container_width=True):
+        if st.button("Sample Prompt", use_container_width=True):
             sample_prompts = {
-                "Professional": "I'm applying for a Project Manager role. Help me write a strong professional summary.",
-                "Resume Enhancer": "Can you enhance this bullet point: 'Responsible for managing customer accounts and handling support tickets.'",
-                "Technical": "I'm a software engineer with 5 years of experience in Python and cloud technologies. How should I structure my technical skills section?",
-                "Creative": "I'm a graphic designer. How can I showcase my design projects effectively on my resume?",
-                "Executive": "I'm a VP of Operations. How do I highlight my strategic leadership and P&L responsibility?",
-                "Entry-Level": "I'm a recent graduate looking for my first job. How do I make my resume stand out with limited experience?",
+                "General Advice": "What are some career paths for a graphic designer?",
+                "Resume Review": "Please review my resume for a software engineer position.",
+                "Interview Prep": "Ask me some common questions for a project manager interview.",
+                "Job Search": "What are the best websites for finding remote marketing jobs?",
             }
-            prompt = sample_prompts.get(st.session_state.resume_mode, sample_prompts["Professional"])
+            prompt = sample_prompts.get(st.session_state.career_mode, sample_prompts["General Advice"])
             st.session_state.history.append({
                 "role": "assistant",
-                "content": f"Here's a sample question to get started:\n\n{prompt}\n\nFeel free to share your own details, and I'll help you craft a great resume!",
+                "content": f"Try asking something like:\n\n{prompt}\n\nI'm ready when you are!",
                 "timestamp": datetime.now().isoformat(),
             })
             st.rerun()
@@ -450,19 +393,16 @@ def render_sidebar():
             bot_messages = total_messages - user_messages
 
             col1, col2 = st.columns(2)
-            col1.metric("Your inputs", user_messages)
-            col2.metric("AI responses", bot_messages)
+            col1.metric("Your Questions", user_messages)
+            col2.metric("Advisor Replies", bot_messages)
 
         st.divider()
 
-        # Resume Tips
-        st.subheader("Resume Tips")
+        st.subheader("Career Tips")
         st.info(
-            "**ATS Optimization:**\n"
-            "- Use standard section headers\n"
-            "- Include relevant keywords\n"
-            "- Use bullet points with metrics\n"
-            "- Keep formatting simple and clean"
+            "**Networking:**\n"
+            "- Connect with professionals on LinkedIn.\n"
+            "- Attend industry events and meetups."
         )
 
 
@@ -472,21 +412,21 @@ def export_chat():
         st.error("No conversation to export")
         return
 
-    export_text = "AI Resume Builder Session Export\n"
+    export_text = "Career Advisor Session Export\n"
     export_text += f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-    export_text += f"Mode: {st.session_state.resume_mode}\n"
+    export_text += f"Mode: {st.session_state.career_mode}\n"
     export_text += f"Model: {st.session_state.selected_model}\n"
     export_text += "=" * 50 + "\n\n"
 
     for msg in st.session_state.history:
-        role = "You" if msg["role"] == "user" else "Resume Builder"
+        role = "You" if msg["role"] == "user" else "Career Advisor"
         timestamp = msg.get("timestamp", "")
         export_text += f"[{timestamp}] {role}:\n{msg['content']}\n\n"
 
     st.sidebar.download_button(
         label="Download Session",
         data=export_text,
-        file_name=f"resume_builder_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+        file_name=f"career_advisor_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
         mime="text/plain",
         use_container_width=True,
     )
@@ -507,8 +447,8 @@ def main():
         st.markdown(
             """
             <div style='text-align: center; padding: 20px;'>
-                <h1 style='color: #2196f3; font-size: 3em; margin-bottom: 0;'>📄 AI Resume Builder</h1>
-                <p style='color: #666; font-size: 1.2em;'>Build professional, ATS-optimized resumes with AI assistance</p>
+                <h1 style='color: #1976d2; font-size: 3em; margin-bottom: 0;'>Career Advisor Bot</h1>
+                <p style='color: #666; font-size: 1.2em;'>Your trusted partner in career development.</p>
             </div>
             """,
             unsafe_allow_html=True,
@@ -516,11 +456,11 @@ def main():
 
         st.markdown(
             """
-            <div style='background: linear-gradient(135deg, #2196f3 0%, #64b5f6 100%);
+            <div style='background: linear-gradient(135deg, #1976d2 0%, #42a5f5 100%);
             padding: 20px; border-radius: 15px; color: white; text-align: center; margin-bottom: 30px;'>
                 <p style='margin: 0; font-size: 1.1em;'>
-                    <strong>Create a standout resume!</strong><br/>
-                    Get expert guidance on structuring, writing, and optimizing your resume for any role.
+                    <strong>Navigate your career path with confidence.</strong><br/>
+                    Get personalized advice to achieve your professional goals.
                 </p>
             </div>
             """,
@@ -532,7 +472,7 @@ def main():
         with st.form("chat_form", clear_on_submit=True):
             user_input = st.text_area(
                 "Message",
-                placeholder="Tell me about your experience, skills, or ask for resume advice...",
+                placeholder="Ask for career advice, a resume review, or interview practice...",
                 key=f"user_input_{st.session_state.input_key}",
                 label_visibility="collapsed",
                 height=100,
@@ -548,8 +488,8 @@ def main():
                 "timestamp": datetime.now().isoformat(),
             })
 
-            with st.spinner("Building your resume..."):
-                reply = get_resume_response(user_input.strip())
+            with st.spinner("Advisor is thinking..."):
+                reply = get_advisor_response(user_input.strip())
 
             st.session_state.history.append({
                 "role": "assistant",
@@ -572,23 +512,23 @@ def apply_custom_css():
     st.markdown(
         f"""
         <style>
-        .main .block-container {{
+        .main .block-container {{ 
             padding-top: 1rem;
             padding-bottom: 2rem;
             max-width: 1200px;
         }}
-        .stTextInput > div > div > input {{
+        .stTextInput > div > div > input {{ 
             border-radius: 25px;
             border: 2px solid #e0e0e0;
             padding: 12px 20px;
             font-size: 1em;
             transition: all 0.3s ease;
         }}
-        .stTextInput > div > div > input:focus {{
+        .stTextInput > div > div > input:focus {{ 
             border-color: {colors["gradient_start"]};
-            box-shadow: 0 0 15px rgba(33, 150, 243, 0.3);
+            box-shadow: 0 0 15px rgba(25, 118, 210, 0.3);
         }}
-        .stTextArea > div > div > textarea {{
+        .stTextArea > div > div > textarea {{ 
             border-radius: 15px;
             border: 2px solid #e0e0e0;
             padding: 12px 20px;
@@ -596,11 +536,11 @@ def apply_custom_css():
             transition: all 0.3s ease;
             resize: vertical;
         }}
-        .stTextArea > div > div > textarea:focus {{
+        .stTextArea > div > div > textarea:focus {{ 
             border-color: {colors["gradient_start"]};
-            box-shadow: 0 0 15px rgba(33, 150, 243, 0.3);
+            box-shadow: 0 0 15px rgba(25, 118, 210, 0.3);
         }}
-        .stButton > button, .stFormSubmitButton > button {{
+        .stButton > button, .stFormSubmitButton > button {{ 
             border-radius: 25px;
             border: none;
             background: linear-gradient(90deg, {colors["gradient_start"]} 0%, {colors["gradient_end"]} 100%);
@@ -610,38 +550,38 @@ def apply_custom_css():
             transition: all 0.3s ease;
             font-size: 1em;
         }}
-        .stButton > button:hover, .stFormSubmitButton > button:hover {{
+        .stButton > button:hover, .stFormSubmitButton > button:hover {{ 
             background: linear-gradient(90deg, {colors["gradient_end"]} 0%, {colors["gradient_start"]} 100%);
             transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(33, 150, 243, 0.4);
+            box-shadow: 0 5px 20px rgba(25, 118, 210, 0.4);
         }}
-        .stSelectbox > div > div {{
+        .stSelectbox > div > div {{ 
             border-radius: 10px;
             border: 2px solid #e0e0e0;
         }}
-        .css-1d391kg {{
+        .css-1d391kg {{ 
             padding-top: 2rem;
         }}
-        ::-webkit-scrollbar {{
+        ::-webkit-scrollbar {{ 
             width: 10px;
         }}
-        ::-webkit-scrollbar-track {{
+        ::-webkit-scrollbar-track {{ 
             background: #f1f1f1;
             border-radius: 10px;
         }}
-        ::-webkit-scrollbar-thumb {{
+        ::-webkit-scrollbar-thumb {{ 
             background: linear-gradient(180deg, {colors["gradient_start"]} 0%, {colors["gradient_end"]} 100%);
             border-radius: 10px;
         }}
-        ::-webkit-scrollbar-thumb:hover {{
+        ::-webkit-scrollbar-thumb:hover {{ 
             background: {colors["gradient_end"]};
         }}
-        .stForm {{
+        .stForm {{ 
             border: none;
             padding: 20px 0;
         }}
-        .css-1xarl3l {{
-            background: linear-gradient(135deg, {colors["gradient_start"]}22 0%, {colors["gradient_end"]}22 100%);
+        .css-1xarl3l {{ 
+            background: linear-gradient(135deg, {colors["gradient_start"] }22 0%, {colors["gradient_end"]}22 100%);
             border-radius: 10px;
             padding: 10px;
         }}
